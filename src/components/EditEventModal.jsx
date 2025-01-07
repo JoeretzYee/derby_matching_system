@@ -1,17 +1,26 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
-const AddEventModal = ({ show, onClose, onSave }) => {
+const EditEventModal = ({ show, onClose, onSave, event }) => {
   const [eventName, setEventName] = useState("");
   const [when, setWhen] = useState("");
 
-  //functions
+  useEffect(() => {
+    if (event) {
+      setEventName(event.name || "");
+      setWhen(event.when || ""); // Format the date correctly
+    }
+  }, [event]);
+
   const handleSave = () => {
     if (eventName.trim() && when.trim()) {
-      onSave({ eventName, when });
-      setEventName("");
-      setWhen(null);
+      onSave({
+        id: event.id,
+        eventName: eventName.trim(),
+        when: when.trim(),
+      });
+      onClose();
     } else {
-      alert("Enter a valid name");
+      alert("Please fill in all fields.");
     }
   };
 
@@ -25,7 +34,7 @@ const AddEventModal = ({ show, onClose, onSave }) => {
       <div className="modal-dialog">
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">Add Event</h5>
+            <h5 className="modal-title">Edit Event</h5>
             <button
               type="button"
               className="btn-close"
@@ -34,17 +43,16 @@ const AddEventModal = ({ show, onClose, onSave }) => {
           </div>
           <div className="modal-body">
             <div className="mb-3">
-              <label className="form-label">Event Name:</label>
+              <label className="form-label">Event Name</label>
               <input
                 type="text"
                 className="form-control"
-                placeholder="Type Here"
                 value={eventName}
                 onChange={(e) => setEventName(e.target.value)}
               />
             </div>
             <div className="mb-3">
-              <label className="form-label">When:</label>
+              <label className="form-label">When</label>
               <input
                 type="datetime-local"
                 className="form-control"
@@ -58,7 +66,7 @@ const AddEventModal = ({ show, onClose, onSave }) => {
               Cancel
             </button>
             <button className="btn btn-primary" onClick={handleSave}>
-              Save
+              Save Changes
             </button>
           </div>
         </div>
@@ -67,4 +75,4 @@ const AddEventModal = ({ show, onClose, onSave }) => {
   );
 };
 
-export default AddEventModal;
+export default EditEventModal;

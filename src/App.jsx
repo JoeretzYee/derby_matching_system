@@ -1,18 +1,32 @@
 import { useEffect, useState } from "react";
 //firebase
-import { db, collection, addDoc, onSnapshot, doc, deleteDoc } from "./firebase";
+import {
+  addDoc,
+  collection,
+  db,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  updateDoc,
+} from "./firebase";
 //react router
-import { Route, Routes, Link } from "react-router-dom";
 import { FaEdit, FaEye, FaTrashAlt } from "react-icons/fa";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
+//sweetalert
+import { Link, Route, Routes } from "react-router-dom";
+import Swal from "sweetalert2";
 import AddEventModal from "./components/AddEventModal";
+import EditEventModal from "./components/EditEventModal";
 import EventList from "./components/EventList";
+import Footer from "./components/Footer";
+import Header from "./components/Header";
 
 function App() {
   //states
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [events, setEvents] = useState([]);
+  // State for the edit modal
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
 
   // useEffects
   useEffect(() => {
@@ -30,37 +44,144 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  //functions
+  // handle functions
   const handleShowAddEventModal = () => {
     setShowAddEventModal(!showAddEventModal);
   };
-  const handleSaveEvent = async (eventName) => {
+  const handleShowEditEventModal = (event) => {
+    setSelectedEvent(event); // Set the event to be edited
+    setShowEditEventModal(true); // Show the modal
+  };
+  const handleSaveEvent = async (data) => {
     try {
       // Save the event name to the Firebase 'events' collection
       const eventsCollection = collection(db, "events");
       await addDoc(eventsCollection, {
-        name: eventName,
-        createdAt: new Date(), // Optional: Add a timestamp
+        name: data.eventName,
+        when: data.when,
       });
 
-      alert("Event successfully added to Firebase:", eventName);
+      // SweetAlert success message
+      Swal.fire({
+        icon: "success",
+        title: "Event successfully added",
+        text: `Name: ${data.eventName}`,
+        timer: 1500, // Auto-close after 1.5 seconds
+        showConfirmButton: false,
+      });
       setShowAddEventModal(false); // Close the modal
     } catch (error) {
-      console.error("Error adding event to Firebase:", error);
+      // SweetAlert error message
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to add the event. Please try again.",
+      });
+    }
+  };
+
+  const handleEditEvent = async (updatedEvent) => {
+    console.log("updatedEvent: ", updatedEvent);
+    try {
+      const eventRef = doc(db, "events", updatedEvent.id);
+      await updateDoc(eventRef, {
+        name: updatedEvent.eventName,
+        when: updatedEvent.when,
+      });
+
+      // Update the local state (if needed) or re-fetch the events
+      setEvents((prevEvents) =>
+        prevEvents.map((event) =>
+          event.id === updatedEvent.id
+            ? {
+                ...event,
+                name: updatedEvent.eventName,
+                when: updatedEvent.when,
+              }
+            : event
+        )
+      );
+
+      Swal.fire({
+        icon: "success",
+        title: "Event Updated",
+        text: `The event "${updatedEvent.eventName}" was successfully updated.`,
+        timer: 1500,
+        showConfirmButton: false,
+      });
+
+      setShowEditEventModal(false); // Close the modal
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to update the event. Please try again.",
+      });
+      console.error("Error updating event:", error);
     }
   };
 
   const handleDeleteEvent = async (eventId) => {
     try {
-      // Reference to the event document in the Firestore database
-      const eventRef = doc(db, "events", eventId);
+      // Show a SweetAlert confirmation dialog
+      const result = await Swal.fire({
+        title: "Are you sure?",
+        text: "This action cannot be undone!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
+        confirmButtonText: "Yes, delete it!",
+      });
 
-      //delete the event document
-      await deleteDoc(eventRef);
-      alert("Delete Successful");
+      if (result.isConfirmed) {
+        // Reference to the event document in the Firestore database
+        const eventRef = doc(db, "events", eventId);
+
+        // Delete the event document
+        await deleteDoc(eventRef);
+
+        // Show a success alert after deletion
+        Swal.fire({
+          icon: "success",
+          title: "Deleted!",
+          text: "The event has been deleted.",
+          timer: 1500, // Auto-close after 1.5 seconds
+          showConfirmButton: false,
+        });
+      }
     } catch (error) {
-      alert("Error Deleting Event:", error);
+      // Show an error alert
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: `Failed to delete the event. Please try again.`,
+      });
+      console.error("Error Deleting Event:", error);
     }
+  };
+
+  //functions
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      console.error("Invalid date:", dateString);
+      return "";
+    }
+
+    // Format the date as "January 19, 2025 at 9:23 PM"
+    const options = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: true,
+    };
+    return date.toLocaleString("en-US", options).replace(",", " at");
   };
 
   return (
@@ -96,10 +217,7 @@ function App() {
                           </div>
                           <h3 className="card-title mb-3">{event.name}</h3>
                           <p className="card-text text-muted">
-                            Created At:{" "}
-                            {new Date(
-                              event.createdAt?.toDate()
-                            ).toLocaleString()}
+                            When: {formatDate(event.when)}
                           </p>
                           <div className="d-flex justify-content-center mt-auto">
                             <Link to={`/event/${event.id}`}>
@@ -109,7 +227,10 @@ function App() {
                               </button>
                             </Link>
 
-                            <button className="btn btn-sm btn-warning me-2 d-flex align-items-center">
+                            <button
+                              className="btn btn-sm btn-warning me-2 d-flex align-items-center"
+                              onClick={() => handleShowEditEventModal(event)}
+                            >
                               <FaEdit className="me-2" />
                               Edit
                             </button>
@@ -137,6 +258,13 @@ function App() {
           show={showAddEventModal}
           onClose={handleShowAddEventModal}
           onSave={handleSaveEvent}
+        />
+        {/* Edit Event Modal */}
+        <EditEventModal
+          show={showEditEventModal}
+          onClose={() => setShowEditEventModal(false)}
+          onSave={handleEditEvent}
+          event={selectedEvent}
         />
       </main>
       <br />
