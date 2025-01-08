@@ -1,40 +1,70 @@
 import React, { useState } from "react";
 
-function AddEntryModal({ show, onClose }) {
-  //states
-  const [weights, setWeights] = useState([]); // For multiple weights
-  const [currentWeight, setCurrentWeight] = useState(""); // For the current input
+function AddEntryModal({ show, onClose, onSave }) {
+  // States
+  const [chickenEntries, setChickenEntries] = useState([]); // For multiple chicken entries
+  const [currentChickenName, setCurrentChickenName] = useState(""); // For the current chicken name input
+  const [currentWeight, setCurrentWeight] = useState(""); // For the current weight input
   const [entryName, setEntryName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [address, setAddress] = useState("nabunturan");
 
-  // Handle input change
-  const handleWeightChange = (event) => {
-    setCurrentWeight(event.target.value);
-  };
-  const handleEntryNameChange = (e) => {
-    setEntryName(e.target.value);
-  };
-  const handleOwnerNameChange = (e) => {
-    setOwnerName(e.target.value);
-  };
-  const handleAddressChange = (e) => {
-    setAddress(e.target.value);
-  };
-  //functions
-  // Handle adding weight
-  const addWeight = () => {
-    if (currentWeight && !isNaN(currentWeight)) {
-      setWeights([...weights, parseFloat(currentWeight)]);
-      setCurrentWeight(""); // Clear input after adding
+  // Handlers for input changes
+  const handleChickenNameChange = (event) =>
+    setCurrentChickenName(event.target.value);
+  const handleWeightChange = (event) => setCurrentWeight(event.target.value);
+  const handleEntryNameChange = (e) => setEntryName(e.target.value);
+  const handleOwnerNameChange = (e) => setOwnerName(e.target.value);
+  const handleAddressChange = (e) => setAddress(e.target.value);
+
+  // Add chicken and weight entry
+  const addChickenEntry = () => {
+    if (!currentChickenName.trim()) {
+      alert("Please enter a chicken name.");
+      return;
     }
+
+    if (
+      !currentWeight ||
+      isNaN(currentWeight) ||
+      parseFloat(currentWeight) <= 0
+    ) {
+      alert("Please enter a valid weight (positive number).");
+      return;
+    }
+
+    // Add the chicken entry to the list
+    setChickenEntries([
+      ...chickenEntries,
+      { chickenName: currentChickenName, weight: parseFloat(currentWeight) },
+    ]);
+
+    // Clear inputs after adding
+    setCurrentChickenName("");
+    setCurrentWeight("");
   };
 
   const handleSave = () => {
-    console.log(entryName, ownerName, address, weights);
+    if (!entryName.trim() || !ownerName.trim() || !address.trim()) {
+      alert("Please fill out all required fields.");
+      return;
+    }
+
+    if (chickenEntries.length === 0) {
+      alert("Please add at least one chicken entry.");
+      return;
+    }
+
+    // Call the onSave callback
+    if (onSave) {
+      onSave({ entryName, ownerName, address, chickenEntries });
+    } else {
+      alert("onSave is not defined.");
+    }
   };
 
   if (!show) return null;
+
   return (
     <div
       className="modal d-block"
@@ -43,7 +73,7 @@ function AddEntryModal({ show, onClose }) {
       <div className="modal-dialog">
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title ">Add Entry</h5>
+            <h5 className="modal-title">Add Entry</h5>
             <button
               type="button"
               className="btn-close"
@@ -52,7 +82,7 @@ function AddEntryModal({ show, onClose }) {
           </div>
           <div className="modal-body">
             <div className="mb-3">
-              <label className="form-label">Entry name</label>
+              <label className="form-label">Entry Name</label>
               <input
                 type="text"
                 className="form-control"
@@ -82,7 +112,17 @@ function AddEntryModal({ show, onClose }) {
               />
             </div>
             <div className="mb-3">
-              <label className="form-label">Weight</label>
+              <label className="form-label">Chicken Name</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Type Here..."
+                value={currentChickenName}
+                onChange={handleChickenNameChange}
+              />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Weight (grams)</label>
               <input
                 type="number"
                 className="form-control"
@@ -92,17 +132,19 @@ function AddEntryModal({ show, onClose }) {
                 onChange={handleWeightChange}
               />
             </div>
-            <button className="btn btn-primary" onClick={addWeight}>
-              Add Weight
+            <button className="btn btn-primary" onClick={addChickenEntry}>
+              Add Chicken Entry
             </button>
 
-            {/* Display added weights */}
+            {/* Display added chicken entries */}
             <div>
               <br />
-              <h5>Added Weights:</h5>
+              <h5>Added Chicken Entries:</h5>
               <ul>
-                {weights.map((weight, index) => (
-                  <li key={index}>{weight} kg</li>
+                {chickenEntries.map((entry, index) => (
+                  <li key={index}>
+                    {entry.chickenName} - {entry.weight} grams
+                  </li>
                 ))}
               </ul>
             </div>
