@@ -7,6 +7,7 @@ function TabsList({ entries }) {
   const [activeTab, setActiveTab] = useState("Entries");
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentEntry, setCurrentEntry] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Handle delete entry
   const handleDeleteEntry = async (entryId) => {
@@ -76,8 +77,22 @@ function TabsList({ entries }) {
   // Render the active tab content
   const renderTabContent = () => {
     if (activeTab === "Entries") {
+      // Filter entries based on search term
+      const filteredEntries = entries.filter((entry) =>
+        entry.entryName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
       return (
         <div>
+          {/* Search Field */}
+          <div className="mb-3">
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Search by Entry Name"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
           <h3>Entries</h3>
           <table className="table table-striped">
             <thead>
@@ -91,7 +106,7 @@ function TabsList({ entries }) {
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry, index) => (
+              {filteredEntries.map((entry, index) => (
                 <tr key={entry.id}>
                   <td>{index + 1}</td>
                   <td>{entry.entryName}</td>
@@ -137,6 +152,96 @@ function TabsList({ entries }) {
         </div>
       );
     }
+    // Matching tab content
+    if (activeTab === "Matching") {
+      const matchResults = [];
+      const matchedChickens = new Set(); // To keep track of already matched chickens by their unique identifier
+
+      // Iterate through each entry and chicken
+      entries.forEach((entry, i) => {
+        entry.chickenEntries.forEach((chicken) => {
+          const chickenKey = `${entry.entryName}-${chicken.chickenName}`; // Unique key for each chicken
+
+          if (matchedChickens.has(chickenKey)) {
+            return; // Skip if this chicken has already been matched
+          }
+
+          let matched = false; // Flag to check if a match is found
+
+          // Search for a match in other entries
+          entries.forEach((otherEntry, j) => {
+            if (i !== j) {
+              otherEntry.chickenEntries.forEach((otherChicken) => {
+                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.chickenName}`;
+
+                if (!matchedChickens.has(otherChickenKey)) {
+                  const weightDifference = Math.abs(
+                    parseFloat(chicken.weight) - parseFloat(otherChicken.weight)
+                  );
+
+                  if (weightDifference <= 30) {
+                    matchResults.push({
+                      entryName1: entry.entryName,
+                      chickenName1: chicken.chickenName,
+                      weight1: parseFloat(chicken.weight).toFixed(2),
+                      entryName2: otherEntry.entryName,
+                      chickenName2: otherChicken.chickenName,
+                      weight2: parseFloat(otherChicken.weight).toFixed(2),
+                    });
+
+                    matchedChickens.add(chickenKey); // Mark as matched
+                    matchedChickens.add(otherChickenKey); // Mark the matching chicken as matched
+                    matched = true;
+                  }
+                }
+              });
+            }
+          });
+
+          // If no match was found, add "standby"
+          if (!matched) {
+            matchResults.push({
+              entryName1: entry.entryName,
+              chickenName1: chicken.chickenName,
+              weight1: parseFloat(chicken.weight).toFixed(2),
+              entryName2: "standby",
+              chickenName2: "",
+              weight2: "",
+            });
+          }
+        });
+      });
+
+      return (
+        <div>
+          <h3>Matching</h3>
+          <table className="table table-striped">
+            <thead>
+              <tr>
+                <th>Entry Name</th>
+                <th>Chicken Name</th>
+                <th>Weight</th>
+                <th>Matched Entry Name</th>
+                <th>Matched Chicken Name</th>
+                <th>Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matchResults.map((result, index) => (
+                <tr key={index}>
+                  <td>{result.entryName1}</td>
+                  <td>{result.chickenName1}</td>
+                  <td>{result.weight1}</td>
+                  <td>{result.entryName2}</td>
+                  <td>{result.chickenName2}</td>
+                  <td>{result.weight2}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
   };
 
   return (
@@ -172,7 +277,7 @@ const EditEntryModal = ({ entry, onSave, onClose }) => {
     entryName: entry.entryName,
     ownerName: entry.ownerName,
     address: entry.address,
-    chickenEntries: entry.chickenEntries,
+    chickenEntries: entry.chickenEntries || [],
   });
 
   const handleChange = (e) => {
@@ -189,17 +294,33 @@ const EditEntryModal = ({ entry, onSave, onClose }) => {
     setFormData({ ...formData, chickenEntries: updatedChickens });
   };
 
+  const handleAddChicken = () => {
+    setFormData({
+      ...formData,
+      chickenEntries: [
+        ...formData.chickenEntries,
+        { chickenName: "", weight: "" }, // Default values for new chicken
+      ],
+    });
+  };
+  const handleRemoveChicken = (idx) => {
+    const updatedChickens = formData.chickenEntries.filter(
+      (_, index) => index !== idx
+    );
+    setFormData({ ...formData, chickenEntries: updatedChickens });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({ ...entry, ...formData }); // Merge original entry with form data
   };
 
   return (
-    <div className="modal" style={{ display: "block" }}>
+    <div className="modal d-block" style={{ display: "block" }}>
       <div className="modal-content">
         <div className="modal-header">
           <h5 className="modal-title">Edit Entry</h5>
-          <button className="close" onClick={onClose}>
+          <button className="close btn-sm btn-danger" onClick={onClose}>
             &times;
           </button>
         </div>
@@ -238,7 +359,7 @@ const EditEntryModal = ({ entry, onSave, onClose }) => {
             <div className="form-group">
               <label>Chickens</label>
               {formData.chickenEntries.map((chicken, idx) => (
-                <div key={idx} className="d-flex">
+                <div key={idx} className="d-flex align-items-center mb-2">
                   <input
                     type="text"
                     className="form-control"
@@ -257,8 +378,22 @@ const EditEntryModal = ({ entry, onSave, onClose }) => {
                     }
                     placeholder="Weight"
                   />
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm ml-2"
+                    onClick={() => handleRemoveChicken(idx)}
+                  >
+                    Remove
+                  </button>
                 </div>
               ))}
+              <button
+                type="button"
+                className="btn btn-success btn-sm mt-2"
+                onClick={handleAddChicken}
+              >
+                Add Chicken
+              </button>
             </div>
             <button type="submit" className="btn btn-primary mt-3">
               Save Changes
