@@ -94,6 +94,15 @@ function EventList() {
     }
   };
 
+  const getMaxEntriesFromEventName = (eventName) => {
+    const match = eventName.match(/^\d+/);
+    return match ? parseInt(match[0], 10) : 0;
+  };
+  const maxEntries =
+    eventDetail && eventDetail.name
+      ? getMaxEntriesFromEventName(eventDetail.name)
+      : 0;
+
   if (!eventDetail) return <div>Loading...</div>;
 
   return (
@@ -103,7 +112,7 @@ function EventList() {
         <Link to="/">
           <button className="btn btn-md btn-secondary">Back</button>
         </Link>
-        <h1 className="text-center text-dark">{eventDetail.name}</h1>
+        <h1 className="text-center text-dark">{eventDetail.name || ""}</h1>
         <div className="d-flex gap-2">
           <button
             className="btn btn-md btn-primary w-auto"
@@ -118,6 +127,7 @@ function EventList() {
           show={showAddEntryModal}
           onClose={handleShowAddEntryModal}
           onSave={addEntryModal}
+          maxEntries={maxEntries}
         />
       </div>
 

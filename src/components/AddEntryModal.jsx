@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-function AddEntryModal({ show, onClose, onSave }) {
+function AddEntryModal({ show, onClose, onSave, maxEntries }) {
   // States
   const [chickenEntries, setChickenEntries] = useState([]); // For multiple chicken entries
   const [currentChickenName, setCurrentChickenName] = useState(""); // For the current chicken name input
@@ -19,6 +19,11 @@ function AddEntryModal({ show, onClose, onSave }) {
 
   // Add chicken and weight entry
   const addChickenEntry = () => {
+    if (chickenEntries.length >= maxEntries) {
+      alert(`You can only add up to ${maxEntries} chicken entries.`);
+      return;
+    }
+
     if (!currentChickenName.trim()) {
       alert("Please enter a chicken name.");
       return;
@@ -44,6 +49,16 @@ function AddEntryModal({ show, onClose, onSave }) {
     setCurrentWeight("");
   };
 
+  // Reset function to clear all fields
+  const resetFields = () => {
+    setEntryName("");
+    setOwnerName("");
+    setAddress("");
+    setChickenEntries([]);
+    setCurrentChickenName("");
+    setCurrentWeight("");
+  };
+
   const handleSave = () => {
     if (!entryName.trim() || !ownerName.trim() || !address.trim()) {
       alert("Please fill out all required fields.");
@@ -58,6 +73,12 @@ function AddEntryModal({ show, onClose, onSave }) {
     // Call the onSave callback
     if (onSave) {
       onSave({ entryName, ownerName, address, chickenEntries });
+
+      // Reset all fields to blank
+      setEntryName("");
+      setOwnerName("");
+      setAddress("");
+      setChickenEntries([]);
     } else {
       alert("onSave is not defined.");
     }
@@ -112,9 +133,9 @@ function AddEntryModal({ show, onClose, onSave }) {
               />
             </div>
             <div className="mb-3">
-              <label className="form-label">Chicken Name</label>
+              <label className="form-label">Wing/Leg #</label>
               <input
-                type="text"
+                type="number"
                 className="form-control"
                 placeholder="Type Here..."
                 value={currentChickenName}
@@ -150,7 +171,10 @@ function AddEntryModal({ show, onClose, onSave }) {
             </div>
           </div>
           <div className="modal-footer">
-            <button className="btn btn-secondary" onClick={onClose}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => window.location.reload()}
+            >
               Cancel
             </button>
             <button className="btn btn-primary" onClick={handleSave}>

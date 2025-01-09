@@ -116,7 +116,7 @@ function TabsList({ entries }) {
                     <ul>
                       {entry.chickenEntries.map((chicken, idx) => (
                         <li key={idx}>
-                          <strong>{chicken.chickenName}</strong> -{" "}
+                          <strong>{chicken.chickenName || "none"}</strong> -{" "}
                           {chicken.weight}
                         </li>
                       ))}
@@ -155,18 +155,18 @@ function TabsList({ entries }) {
     // Matching tab content
     if (activeTab === "Matching") {
       const matchResults = [];
-      const matchedChickens = new Set(); // To keep track of already matched chickens by their unique identifier
+      const matchedChickens = new Set(); // To keep track of all matched chickens by their unique identifiers
 
       // Iterate through each entry and chicken
       entries.forEach((entry, i) => {
         entry.chickenEntries.forEach((chicken) => {
-          const chickenKey = `${entry.entryName}-${chicken.chickenName}`; // Unique key for each chicken
+          const chickenKey = `${entry.entryName}-${chicken.chickenName}`;
 
           if (matchedChickens.has(chickenKey)) {
             return; // Skip if this chicken has already been matched
           }
 
-          let matched = false; // Flag to check if a match is found
+          let matched = false;
 
           // Search for a match in other entries
           entries.forEach((otherEntry, j) => {
@@ -174,23 +174,31 @@ function TabsList({ entries }) {
               otherEntry.chickenEntries.forEach((otherChicken) => {
                 const otherChickenKey = `${otherEntry.entryName}-${otherChicken.chickenName}`;
 
-                if (!matchedChickens.has(otherChickenKey)) {
+                // Ensure neither chicken has already been matched
+                if (
+                  !matchedChickens.has(chickenKey) &&
+                  !matchedChickens.has(otherChickenKey)
+                ) {
                   const weightDifference = Math.abs(
                     parseFloat(chicken.weight) - parseFloat(otherChicken.weight)
                   );
 
                   if (weightDifference <= 30) {
+                    // Add to results
                     matchResults.push({
                       entryName1: entry.entryName,
                       chickenName1: chicken.chickenName,
                       weight1: parseFloat(chicken.weight).toFixed(2),
+                      ownerName1: entry.ownerName, // Add ownerName to the result
                       entryName2: otherEntry.entryName,
                       chickenName2: otherChicken.chickenName,
                       weight2: parseFloat(otherChicken.weight).toFixed(2),
+                      ownerName2: otherEntry.ownerName, // Add ownerName to the result
                     });
 
-                    matchedChickens.add(chickenKey); // Mark as matched
-                    matchedChickens.add(otherChickenKey); // Mark the matching chicken as matched
+                    // Mark both chickens as matched
+                    matchedChickens.add(chickenKey);
+                    matchedChickens.add(otherChickenKey);
                     matched = true;
                   }
                 }
@@ -204,12 +212,27 @@ function TabsList({ entries }) {
               entryName1: entry.entryName,
               chickenName1: chicken.chickenName,
               weight1: parseFloat(chicken.weight).toFixed(2),
+              ownerName1: entry.ownerName, // Add ownerName to the result
               entryName2: "standby",
               chickenName2: "",
               weight2: "",
+              ownerName2: "", // No ownerName for standby
             });
           }
         });
+      });
+
+      // Sort matchResults in ascending order of weight
+      matchResults.sort((a, b) => {
+        // If either entry is "standby", move it to the end
+        if (a.entryName2 === "standby" && b.entryName2 !== "standby") return 1;
+        if (a.entryName2 !== "standby" && b.entryName2 === "standby") return -1;
+
+        // Compare weights when both entries are matched
+        const weightA = parseFloat(a.weight1);
+        const weightB = parseFloat(b.weight1);
+
+        return weightA - weightB;
       });
 
       return (
@@ -218,10 +241,14 @@ function TabsList({ entries }) {
           <table className="table table-striped">
             <thead>
               <tr>
+                <th>Fight #</th>
                 <th>Entry Name</th>
-                <th>Chicken Name</th>
+                <th>Owner Name</th> {/* Add Owner Name column */}
+                <th>Wing/Leg #</th>
                 <th>Weight</th>
                 <th>Matched Entry Name</th>
+                <th>Matched Owner Name</th>{" "}
+                {/* Add Owner Name column for matched entry */}
                 <th>Matched Chicken Name</th>
                 <th>Weight</th>
               </tr>
@@ -229,10 +256,14 @@ function TabsList({ entries }) {
             <tbody>
               {matchResults.map((result, index) => (
                 <tr key={index}>
+                  <td>{index + 1}</td>
                   <td>{result.entryName1}</td>
+                  <td>{result.ownerName1}</td> {/* Display Owner Name */}
                   <td>{result.chickenName1}</td>
                   <td>{result.weight1}</td>
                   <td>{result.entryName2}</td>
+                  <td>{result.ownerName2}</td>{" "}
+                  {/* Display Matched Owner Name */}
                   <td>{result.chickenName2}</td>
                   <td>{result.weight2}</td>
                 </tr>
