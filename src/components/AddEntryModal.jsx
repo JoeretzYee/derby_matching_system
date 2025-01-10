@@ -24,10 +24,10 @@ function AddEntryModal({ show, onClose, onSave, maxEntries }) {
       return;
     }
 
-    if (!currentChickenName.trim()) {
-      alert("Please enter a chicken name.");
-      return;
-    }
+    // if (!currentChickenName.trim()) {
+    //   alert("Please enter a chicken name.");
+    //   return;
+    // }
 
     if (
       !currentWeight ||
@@ -97,7 +97,7 @@ function AddEntryModal({ show, onClose, onSave, maxEntries }) {
             <h5 className="modal-title">Add Entry</h5>
             <button
               type="button"
-              className="btn-close"
+              className="btn-close btn-sm btn-danger"
               onClick={onClose}
             ></button>
           </div>

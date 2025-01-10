@@ -120,7 +120,6 @@ function EventList() {
           >
             Add Entry
           </button>
-          <button className="btn btn-md btn-success  w-auto">Generate</button>
         </div>
         {/* Add Entry Modal */}
         <AddEntryModal

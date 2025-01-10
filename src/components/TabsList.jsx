@@ -2,12 +2,15 @@ import React, { useState } from "react";
 import { FaEdit, FaTrashAlt } from "react-icons/fa";
 import { db, doc, deleteDoc, updateDoc } from "../firebase"; // import updateDoc
 import Swal from "sweetalert2";
+import * as XLSX from "xlsx";
 
 function TabsList({ entries }) {
   const [activeTab, setActiveTab] = useState("Entries");
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentEntry, setCurrentEntry] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  console.log("entries: ", entries);
 
   // Handle delete entry
   const handleDeleteEntry = async (entryId) => {
@@ -74,6 +77,50 @@ function TabsList({ entries }) {
     }
   };
 
+  //generate excel
+  const generateExcelEntries = () => {
+    const headers = ["#", "Entry Name", "Owner Name", "Address", "Chickens"]; // Define headers for the Excel file
+
+    // Prepare data rows
+    const data = entries.map((entry, index) => {
+      const chickenDetails = entry.chickenEntries
+        .map((chicken) => `${chicken.chickenName} - ${chicken.weight}`)
+        .join(", ");
+      return [
+        index + 1,
+        entry.entryName,
+        entry.ownerName,
+        entry.address,
+        chickenDetails,
+      ];
+    });
+
+    // Combine headers and data
+    const worksheetData = [headers, ...data];
+
+    // Create worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+    // Calculate column widths
+    const columnWidths = worksheetData[0].map((header, colIndex) => ({
+      wch: Math.max(
+        header.length, // Header length
+        ...data.map((row) =>
+          row[colIndex] ? row[colIndex].toString().length : 0
+        ) // Data length
+      ),
+    }));
+
+    worksheet["!cols"] = columnWidths; // Set column widths in the worksheet
+
+    // Create workbook and append the worksheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Entries");
+
+    // Write to Excel file and trigger download
+    XLSX.writeFile(workbook, "entries.xlsx");
+  };
+
   // Render the active tab content
   const renderTabContent = () => {
     if (activeTab === "Entries") {
@@ -93,7 +140,16 @@ function TabsList({ entries }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <h3>Entries</h3>
+          <div className="d-flex align-items-center justify-content-between">
+            <h3>Entries</h3>
+            <button
+              onClick={generateExcelEntries}
+              className="btn btn-md btn-success"
+            >
+              Generate
+            </button>
+          </div>
+
           <table className="table table-striped">
             <thead>
               <tr>
@@ -179,21 +235,48 @@ function TabsList({ entries }) {
                   !matchedChickens.has(chickenKey) &&
                   !matchedChickens.has(otherChickenKey)
                 ) {
-                  const weightDifference = Math.abs(
-                    parseFloat(chicken.weight) - parseFloat(otherChicken.weight)
+                  const weight1 = parseFloat(chicken.weight);
+                  const weight2 = parseFloat(otherChicken.weight);
+                  const weightDifference = Math.abs(weight1 - weight2);
+
+                  // Debugging the weight comparison
+                  console.log(
+                    `Comparing weights: ${weight1} vs ${weight2} (Difference: ${weightDifference})`
                   );
 
-                  if (weightDifference <= 30) {
-                    // Add to results
+                  // First, check for an exact weight match
+                  if (weightDifference === 0) {
+                    // Add to results as an exact match
                     matchResults.push({
                       entryName1: entry.entryName,
                       chickenName1: chicken.chickenName,
-                      weight1: parseFloat(chicken.weight).toFixed(2),
+                      weight1: weight1.toFixed(2),
                       ownerName1: entry.ownerName, // Add ownerName to the result
                       entryName2: otherEntry.entryName,
                       chickenName2: otherChicken.chickenName,
-                      weight2: parseFloat(otherChicken.weight).toFixed(2),
+                      weight2: weight2.toFixed(2),
                       ownerName2: otherEntry.ownerName, // Add ownerName to the result
+                      exactMatch: true, // Mark it as an exact match
+                    });
+
+                    // Mark both chickens as matched
+                    matchedChickens.add(chickenKey);
+                    matchedChickens.add(otherChickenKey);
+                    matched = true;
+                  }
+                  // If it's not an exact match, check if the weight difference is within ±35
+                  else if (weightDifference <= 35) {
+                    // Add to results as a close match
+                    matchResults.push({
+                      entryName1: entry.entryName,
+                      chickenName1: chicken.chickenName,
+                      weight1: weight1.toFixed(2),
+                      ownerName1: entry.ownerName, // Add ownerName to the result
+                      entryName2: otherEntry.entryName,
+                      chickenName2: otherChicken.chickenName,
+                      weight2: weight2.toFixed(2),
+                      ownerName2: otherEntry.ownerName, // Add ownerName to the result
+                      exactMatch: false, // Mark it as a close match
                     });
 
                     // Mark both chickens as matched
@@ -217,39 +300,84 @@ function TabsList({ entries }) {
               chickenName2: "",
               weight2: "",
               ownerName2: "", // No ownerName for standby
+              exactMatch: false, // Standby chickens are not exact matches
             });
           }
         });
       });
 
-      // Sort matchResults in ascending order of weight
+      // Sort matchResults:
+      // 1. Prioritize exact matches
+      // 2. If no match, fallback to closest match
+      // 3. If neither, keep the standby entries at the end
       matchResults.sort((a, b) => {
-        // If either entry is "standby", move it to the end
-        if (a.entryName2 === "standby" && b.entryName2 !== "standby") return 1;
-        if (a.entryName2 !== "standby" && b.entryName2 === "standby") return -1;
+        // First, prioritize exact matches
+        if (a.exactMatch && !b.exactMatch) return -1;
+        if (!a.exactMatch && b.exactMatch) return 1;
 
-        // Compare weights when both entries are matched
+        // If both are exact or both are close, sort by weight difference (smaller difference comes first)
         const weightA = parseFloat(a.weight1);
         const weightB = parseFloat(b.weight1);
-
         return weightA - weightB;
       });
 
+      // Generate Excel matching file
+      const generateExcelMatching = () => {
+        const tableData = matchResults.map((result, index) => ({
+          "Fight #": index + 1,
+          "Entry Name": result.entryName1,
+          "Owner Name": result.ownerName1,
+          "Wing/Leg #": result.chickenName1,
+          Weight: result.weight1,
+          "Matched Entry Name": result.entryName2,
+          "Matched Owner Name": result.ownerName2,
+          "Matched Chicken Name": result.chickenName2,
+          "Matched Weight": result.weight2,
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(tableData);
+
+        // Column width calculation
+        const columnWidths = Object.keys(tableData[0]).map((key) => ({
+          wch: Math.max(
+            key.length,
+            ...tableData.map((row) =>
+              row[key] ? row[key].toString().length : 0
+            )
+          ),
+        }));
+
+        worksheet["!cols"] = columnWidths;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
+
+        XLSX.writeFile(workbook, "MatchingResults.xlsx");
+      };
+
       return (
         <div>
-          <h3>Matching</h3>
+          <div className="d-flex align-items-center justify-content-between">
+            <h3>Matching</h3>
+            <button
+              onClick={generateExcelMatching}
+              className="btn btn-md btn-success"
+            >
+              Generate
+            </button>
+          </div>
+
           <table className="table table-striped">
             <thead>
               <tr>
                 <th>Fight #</th>
                 <th>Entry Name</th>
-                <th>Owner Name</th> {/* Add Owner Name column */}
+                <th>Owner Name</th>
                 <th>Wing/Leg #</th>
                 <th>Weight</th>
                 <th>Matched Entry Name</th>
-                <th>Matched Owner Name</th>{" "}
-                {/* Add Owner Name column for matched entry */}
-                <th>Matched Chicken Name</th>
+                <th>Matched Owner Name</th>
+                <th>Matched Wing/Leg #</th>
                 <th>Weight</th>
               </tr>
             </thead>
@@ -258,13 +386,12 @@ function TabsList({ entries }) {
                 <tr key={index}>
                   <td>{index + 1}</td>
                   <td>{result.entryName1}</td>
-                  <td>{result.ownerName1}</td> {/* Display Owner Name */}
-                  <td>{result.chickenName1}</td>
+                  <td>{result.ownerName1}</td>
+                  <td>{result.chickenName1 || "none"}</td>
                   <td>{result.weight1}</td>
                   <td>{result.entryName2}</td>
-                  <td>{result.ownerName2}</td>{" "}
-                  {/* Display Matched Owner Name */}
-                  <td>{result.chickenName2}</td>
+                  <td>{result.ownerName2}</td>
+                  <td>{result.chickenName2 || "none"}</td>
                   <td>{result.weight2}</td>
                 </tr>
               ))}
