@@ -3,15 +3,48 @@ import { FaEdit, FaTrashAlt } from "react-icons/fa";
 import { db, doc, deleteDoc, updateDoc } from "../firebase"; // import updateDoc
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
+import Select from "react-select";
 
 function TabsList({ entries }) {
   const [activeTab, setActiveTab] = useState("Entries");
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentEntry, setCurrentEntry] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showExcludeModal, setShowExcludeModal] = useState(false);
+  const [selectedEntry1, setSelectedEntry1] = useState(null);
+  const [selectedEntry2, setSelectedEntry2] = useState(null);
+  const [excludedPairs, setExcludedPairs] = useState([]); // Store excluded pairs
 
-  console.log("entries: ", entries);
+  const entryOptions = entries.map((entry) => ({
+    value: entry.id,
+    label: entry.entryName,
+  }));
 
+  const handleExcludeSubmit = () => {
+    if (selectedEntry1 && selectedEntry2) {
+      if (selectedEntry1.value === selectedEntry2.value) {
+        alert("Cannot exclude the same entry!");
+        return;
+      }
+
+      // Add the excluded pair to the list
+      setExcludedPairs((prev) => [
+        ...prev,
+        { entry1: selectedEntry1.value, entry2: selectedEntry2.value },
+      ]);
+
+      Swal.fire({
+        icon: "success",
+        title: "Excluded",
+        text: "The selected entries have been excluded from matching.",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    }
+    setShowExcludeModal(false);
+  };
+
+  console.log("excluded: ", excludedPairs);
   // Handle delete entry
   const handleDeleteEntry = async (entryId) => {
     try {
@@ -227,6 +260,17 @@ function TabsList({ entries }) {
           // Search for a match in other entries
           entries.forEach((otherEntry, j) => {
             if (i !== j) {
+              // Check if the pair of entries has been excluded
+              const isExcluded = excludedPairs.some(
+                (pair) =>
+                  (pair.entry1 === entry.id && pair.entry2 === otherEntry.id) ||
+                  (pair.entry1 === otherEntry.id && pair.entry2 === entry.id)
+              );
+
+              if (isExcluded) {
+                return; // Skip matching this pair of entries as they are excluded
+              }
+
               otherEntry.chickenEntries.forEach((otherChicken) => {
                 const otherChickenKey = `${otherEntry.entryName}-${otherChicken.chickenName}`;
 
@@ -239,14 +283,8 @@ function TabsList({ entries }) {
                   const weight2 = parseFloat(otherChicken.weight);
                   const weightDifference = Math.abs(weight1 - weight2);
 
-                  // Debugging the weight comparison
-                  console.log(
-                    `Comparing weights: ${weight1} vs ${weight2} (Difference: ${weightDifference})`
-                  );
-
                   // First, check for an exact weight match
                   if (weightDifference === 0) {
-                    // Add to results as an exact match
                     matchResults.push({
                       entryName1: entry.entryName,
                       chickenName1: chicken.chickenName,
@@ -259,14 +297,12 @@ function TabsList({ entries }) {
                       exactMatch: true, // Mark it as an exact match
                     });
 
-                    // Mark both chickens as matched
                     matchedChickens.add(chickenKey);
                     matchedChickens.add(otherChickenKey);
                     matched = true;
                   }
                   // If it's not an exact match, check if the weight difference is within ±35
                   else if (weightDifference <= 35) {
-                    // Add to results as a close match
                     matchResults.push({
                       entryName1: entry.entryName,
                       chickenName1: chicken.chickenName,
@@ -279,7 +315,6 @@ function TabsList({ entries }) {
                       exactMatch: false, // Mark it as a close match
                     });
 
-                    // Mark both chickens as matched
                     matchedChickens.add(chickenKey);
                     matchedChickens.add(otherChickenKey);
                     matched = true;
@@ -359,12 +394,20 @@ function TabsList({ entries }) {
         <div>
           <div className="d-flex align-items-center justify-content-between">
             <h3>Matching</h3>
-            <button
-              onClick={generateExcelMatching}
-              className="btn btn-md btn-success"
-            >
-              Generate
-            </button>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                onClick={() => setShowExcludeModal(true)}
+                className="btn btn-md btn-primary"
+              >
+                Exclude
+              </button>
+              <button
+                onClick={generateExcelMatching}
+                className="btn btn-md btn-success "
+              >
+                Generate
+              </button>
+            </div>
           </div>
 
           <table className="table table-striped">
@@ -425,6 +468,59 @@ function TabsList({ entries }) {
       </ul>
       {/* Tab content */}
       <div className="tab-content mt-3">{renderTabContent()}</div>
+      {/* Exclude Modal */}
+      {showExcludeModal && (
+        <div className="modal d-block">
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Exclude Entries</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowExcludeModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label>Select Entry 1</label>
+                  <Select
+                    options={entryOptions}
+                    value={selectedEntry1}
+                    onChange={setSelectedEntry1}
+                    placeholder="Select an entry"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label>Select Entry 2</label>
+                  <Select
+                    options={entryOptions}
+                    value={selectedEntry2}
+                    onChange={setSelectedEntry2}
+                    placeholder="Select an entry"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowExcludeModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleExcludeSubmit}
+                >
+                  Exclude
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
