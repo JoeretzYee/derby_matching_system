@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { FaEdit, FaTrashAlt } from "react-icons/fa";
-import { db, doc, deleteDoc, updateDoc } from "../firebase"; // import updateDoc
+import Select from "react-select";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
-import Select from "react-select";
+import { db, deleteDoc, doc, updateDoc } from "../firebase"; // import updateDoc
 
 function TabsList({ entries }) {
   const [activeTab, setActiveTab] = useState("Entries");
@@ -27,6 +27,20 @@ function TabsList({ entries }) {
         return;
       }
 
+      // Normalize and check if the pair is already excluded
+      const normalizePair = (entry1, entry2) => [entry1, entry2].sort();
+      const isAlreadyExcluded = excludedPairs.some(
+        (pair) =>
+          JSON.stringify(normalizePair(pair.entry1, pair.entry2)) ===
+          JSON.stringify(
+            normalizePair(selectedEntry1.value, selectedEntry2.value)
+          )
+      );
+      if (isAlreadyExcluded) {
+        alert("This pair is already excluded!");
+        return;
+      }
+
       // Add the excluded pair to the list
       setExcludedPairs((prev) => [
         ...prev,
@@ -40,6 +54,10 @@ function TabsList({ entries }) {
         timer: 1500,
         showConfirmButton: false,
       });
+
+      // Reset the selections after submission
+      setSelectedEntry1(null);
+      setSelectedEntry2(null);
     }
     setShowExcludeModal(false);
   };
@@ -244,75 +262,59 @@ function TabsList({ entries }) {
     // Matching tab content
     if (activeTab === "Matching") {
       const matchResults = [];
-      const matchedChickens = new Set(); // To keep track of all matched chickens by their unique identifiers
+      const matchedChickens = new Set();
 
-      // Iterate through each entry and chicken
+      // Function to check if the pair is excluded
+      const isExcluded = (entry1, entry2) => {
+        const normalizePair = (entry1, entry2) => [entry1, entry2].sort();
+        return excludedPairs.some(
+          (pair) =>
+            JSON.stringify(normalizePair(pair.entry1, pair.entry2)) ===
+            JSON.stringify(normalizePair(entry1, entry2))
+        );
+      };
+
+      // Iterate through entries
       entries.forEach((entry, i) => {
-        entry.chickenEntries.forEach((chicken) => {
-          const chickenKey = `${entry.entryName}-${chicken.chickenName}`;
+        const chickenEntries = entry.chickenEntries || [];
+        chickenEntries.forEach((chicken) => {
+          const chickenKey = `${entry.entryName}-${chicken.weight}`;
 
+          // Skip if already matched
           if (matchedChickens.has(chickenKey)) {
-            return; // Skip if this chicken has already been matched
+            return;
           }
 
           let matched = false;
 
-          // Search for a match in other entries
+          // Find a match for the current chicken
           entries.forEach((otherEntry, j) => {
             if (i !== j) {
-              // Check if the pair of entries has been excluded
-              const isExcluded = excludedPairs.some(
-                (pair) =>
-                  (pair.entry1 === entry.id && pair.entry2 === otherEntry.id) ||
-                  (pair.entry1 === otherEntry.id && pair.entry2 === entry.id)
-              );
+              const otherChickenEntries = otherEntry.chickenEntries || [];
+              otherChickenEntries.forEach((otherChicken) => {
+                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
 
-              if (isExcluded) {
-                return; // Skip matching this pair of entries as they are excluded
-              }
-
-              otherEntry.chickenEntries.forEach((otherChicken) => {
-                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.chickenName}`;
-
-                // Ensure neither chicken has already been matched
                 if (
                   !matchedChickens.has(chickenKey) &&
-                  !matchedChickens.has(otherChickenKey)
+                  !matchedChickens.has(otherChickenKey) &&
+                  !isExcluded(entry.entryName, otherEntry.entryName) // Skip if excluded
                 ) {
                   const weight1 = parseFloat(chicken.weight);
                   const weight2 = parseFloat(otherChicken.weight);
                   const weightDifference = Math.abs(weight1 - weight2);
 
-                  // First, check for an exact weight match
-                  if (weightDifference === 0) {
+                  if (weightDifference <= 35) {
+                    // Match found
                     matchResults.push({
+                      fightNumber: matchResults.length + 1,
                       entryName1: entry.entryName,
-                      chickenName1: chicken.chickenName,
+                      ownerName1: entry.ownerName,
+                      chickenName1: chicken.chickenName || "none",
                       weight1: weight1.toFixed(2),
-                      ownerName1: entry.ownerName, // Add ownerName to the result
                       entryName2: otherEntry.entryName,
-                      chickenName2: otherChicken.chickenName,
+                      ownerName2: otherEntry.ownerName,
+                      chickenName2: otherChicken.chickenName || "none",
                       weight2: weight2.toFixed(2),
-                      ownerName2: otherEntry.ownerName, // Add ownerName to the result
-                      exactMatch: true, // Mark it as an exact match
-                    });
-
-                    matchedChickens.add(chickenKey);
-                    matchedChickens.add(otherChickenKey);
-                    matched = true;
-                  }
-                  // If it's not an exact match, check if the weight difference is within ±35
-                  else if (weightDifference <= 35) {
-                    matchResults.push({
-                      entryName1: entry.entryName,
-                      chickenName1: chicken.chickenName,
-                      weight1: weight1.toFixed(2),
-                      ownerName1: entry.ownerName, // Add ownerName to the result
-                      entryName2: otherEntry.entryName,
-                      chickenName2: otherChicken.chickenName,
-                      weight2: weight2.toFixed(2),
-                      ownerName2: otherEntry.ownerName, // Add ownerName to the result
-                      exactMatch: false, // Mark it as a close match
                     });
 
                     matchedChickens.add(chickenKey);
@@ -324,38 +326,23 @@ function TabsList({ entries }) {
             }
           });
 
-          // If no match was found, add "standby"
+          // If no match is found, mark the entry as standby
           if (!matched) {
             matchResults.push({
-              entryName1: entry.entryName,
-              chickenName1: chicken.chickenName,
+              fightNumber: matchResults.length + 1,
+              entryName1: `${entry.entryName} (standby)`,
+              ownerName1: entry.ownerName,
+              chickenName1: chicken.chickenName || "none",
               weight1: parseFloat(chicken.weight).toFixed(2),
-              ownerName1: entry.ownerName, // Add ownerName to the result
-              entryName2: "standby",
+              entryName2: "",
+              ownerName2: "",
               chickenName2: "",
               weight2: "",
-              ownerName2: "", // No ownerName for standby
-              exactMatch: false, // Standby chickens are not exact matches
             });
           }
         });
       });
-
-      // Sort matchResults:
-      // 1. Prioritize exact matches
-      // 2. If no match, fallback to closest match
-      // 3. If neither, keep the standby entries at the end
-      matchResults.sort((a, b) => {
-        // First, prioritize exact matches
-        if (a.exactMatch && !b.exactMatch) return -1;
-        if (!a.exactMatch && b.exactMatch) return 1;
-
-        // If both are exact or both are close, sort by weight difference (smaller difference comes first)
-        const weightA = parseFloat(a.weight1);
-        const weightB = parseFloat(b.weight1);
-        return weightA - weightB;
-      });
-
+      console.log("Match Results:", matchResults); // Log the final results
       // Generate Excel matching file
       const generateExcelMatching = () => {
         const tableData = matchResults.map((result, index) => ({
@@ -427,14 +414,14 @@ function TabsList({ entries }) {
             <tbody>
               {matchResults.map((result, index) => (
                 <tr key={index}>
-                  <td>{index + 1}</td>
+                  <td>{result.fightNumber}</td>
                   <td>{result.entryName1}</td>
                   <td>{result.ownerName1}</td>
-                  <td>{result.chickenName1 || "none"}</td>
+                  <td>{result.chickenName1}</td>
                   <td>{result.weight1}</td>
                   <td>{result.entryName2}</td>
                   <td>{result.ownerName2}</td>
-                  <td>{result.chickenName2 || "none"}</td>
+                  <td>{result.chickenName2}</td>
                   <td>{result.weight2}</td>
                 </tr>
               ))}
