@@ -13,6 +13,7 @@ import {
 import Swal from "sweetalert2";
 import AddEntryModal from "./AddEntryModal";
 import TabsList from "./TabsList";
+import { SlTag } from "react-icons/sl";
 
 function EventList() {
   //states
@@ -20,6 +21,9 @@ function EventList() {
   const [eventDetail, setEventDetail] = useState(null);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   const [entries, setEntries] = useState([]); // Store all entries
+  const [cock, setCock] = useState("");
+  const [stag, setStag] = useState("");
+  const [bullstag, setBullstag] = useState("");
 
   //useEffect
   useEffect(() => {
@@ -30,6 +34,12 @@ function EventList() {
         const eventDoc = await getDoc(eventRef);
         if (eventDoc.exists()) {
           setEventDetail(eventDoc.data());
+          // Check if the event name contains the target words
+          if (eventDoc.data().name) {
+            if (/stag/i.test(eventDoc.data().name)) setStag("stag");
+            if (/bullstag/i.test(eventDoc.data().name)) setBullstag("bullstag");
+            if (/cock/i.test(eventDoc.data().name)) setCock("cock");
+          }
         } else {
           alert("No such event");
         }
@@ -72,6 +82,7 @@ function EventList() {
         ownerName: data.ownerName,
         address: data.address,
         chickenEntries: data.chickenEntries,
+        isToprank: data.isToprankChecked,
         eventId: eventId,
       });
       // SweetAlert success message
@@ -127,6 +138,9 @@ function EventList() {
           onClose={handleShowAddEntryModal}
           onSave={addEntryModal}
           maxEntries={maxEntries}
+          stag={stag}
+          bullstag={bullstag}
+          cock={cock}
         />
       </div>
 

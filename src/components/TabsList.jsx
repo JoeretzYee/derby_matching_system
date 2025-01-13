@@ -224,7 +224,7 @@ function TabsList({ entries }) {
                       {entry.chickenEntries.map((chicken, idx) => (
                         <li key={idx}>
                           <strong>{chicken.chickenName || "none"}</strong> -{" "}
-                          {chicken.weight}
+                          {chicken.weight} grams
                         </li>
                       ))}
                     </ul>
