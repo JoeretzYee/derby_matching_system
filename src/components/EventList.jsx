@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Select from "react-select";
 import { useParams, Link } from "react-router-dom";
 import {
   db,
@@ -7,6 +8,7 @@ import {
   addDoc,
   collection,
   query,
+  getDocs,
   where,
   onSnapshot,
 } from "../firebase";
@@ -20,10 +22,19 @@ function EventList() {
   const { eventId } = useParams();
   const [eventDetail, setEventDetail] = useState(null);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
+  const [showExcludeModal, setShowExcludeModal] = useState(false);
+  const [selectedEntry1, setSelectedEntry1] = useState(null);
+  const [selectedEntry2, setSelectedEntry2] = useState(null);
+  const [excludedPairs, setExcludedPairs] = useState([]); // Store excluded pairs
   const [entries, setEntries] = useState([]); // Store all entries
   const [cock, setCock] = useState("");
   const [stag, setStag] = useState("");
   const [bullstag, setBullstag] = useState("");
+
+  const entryOptions = entries.map((entry) => ({
+    value: entry.id,
+    label: entry.entryName,
+  }));
 
   //useEffect
   useEffect(() => {
@@ -70,6 +81,99 @@ function EventList() {
   }, [eventId]);
 
   //functions
+  const handleExcludeSubmit = async () => {
+    if (!selectedEntry1 || !selectedEntry2) {
+      Swal.fire({
+        icon: "warning",
+        title: "Incomplete Selection",
+        text: "Please select both entries to exclude.",
+        confirmButtonText: "OK",
+      });
+      return;
+    }
+
+    // Check if the same entry is selected for both
+    if (selectedEntry1.value === selectedEntry2.value) {
+      Swal.fire({
+        icon: "error",
+        title: "Invalid Selection",
+        text: "You cannot exclude the same entry as both Entry 1 and Entry 2.",
+        confirmButtonText: "OK",
+      });
+      return;
+    }
+
+    try {
+      // Reference to the 'excludedEntries' collection
+      const excludedRef = collection(db, "excludedEntries");
+
+      // Query to check if the selected entries are already excluded
+      const q = query(excludedRef, where("eventId", "==", eventId));
+      const querySnapshot = await getDocs(q);
+
+      let isAlreadyExcluded = false;
+
+      // Iterate through all excluded documents to check if the entries are already excluded
+      querySnapshot.forEach((doc) => {
+        const excludedPairs = doc.data().excluded || [];
+        excludedPairs.forEach((pair) => {
+          const isMatch =
+            (pair.entry1 === selectedEntry1.value &&
+              pair.entry2 === selectedEntry2.value) ||
+            (pair.entry1 === selectedEntry2.value &&
+              pair.entry2 === selectedEntry1.value); // Check both orders
+          if (isMatch) {
+            isAlreadyExcluded = true;
+          }
+        });
+      });
+
+      if (isAlreadyExcluded) {
+        Swal.fire({
+          icon: "info",
+          title: "Already Excluded",
+          text: "These entries are already excluded.",
+          confirmButtonText: "OK",
+        });
+        return;
+      }
+
+      // Add the new exclusion to Firestore
+      const excludedData = {
+        eventId: eventId, // Replace with your event ID
+        excluded: [
+          {
+            entry1: selectedEntry1.value, // Assuming Select provides an object with `value`
+            entry2: selectedEntry2.value,
+            timestamp: new Date().toISOString(), // Optional for logging
+          },
+        ],
+      };
+
+      await addDoc(excludedRef, excludedData);
+
+      Swal.fire({
+        icon: "success",
+        title: "Entries Excluded",
+        text: "The selected entries have been excluded successfully.",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+
+      setShowExcludeModal(false); // Close the modal
+      setSelectedEntry1(null);
+      setSelectedEntry2(null);
+    } catch (error) {
+      console.error("Error excluding entries:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to exclude entries. Please try again.",
+        confirmButtonText: "OK",
+      });
+    }
+  };
+
   const handleShowAddEntryModal = () => {
     setShowAddEntryModal(!showAddEntryModal);
   };
@@ -85,7 +189,7 @@ function EventList() {
         isToprank: data.isToprankChecked,
         eventId: eventId,
       });
-      // SweetAlert success message
+
       Swal.fire({
         icon: "success",
         title: "Data Entry successfully added",
@@ -126,11 +230,18 @@ function EventList() {
         <h1 className="text-center text-dark">{eventDetail.name || ""}</h1>
         <div className="d-flex gap-2">
           <button
+            onClick={() => setShowExcludeModal(true)}
+            className="btn btn-md btn-primary"
+          >
+            Exclude
+          </button>
+          <button
             className="btn btn-md btn-primary w-auto"
             onClick={handleShowAddEntryModal}
           >
             Add Entry
           </button>
+          <button className="btn btn-md btn-primary">Generate</button>
         </div>
         {/* Add Entry Modal */}
         <AddEntryModal
@@ -144,7 +255,68 @@ function EventList() {
         />
       </div>
 
-      <TabsList entries={entries} />
+      <TabsList
+        eventId={eventId}
+        entries={entries}
+        date={eventDetail.when}
+        eventName={eventDetail.name}
+      />
+      {/* Exclude Modal */}
+      {showExcludeModal && (
+        <div className="modal d-block">
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Exclude Entries</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowExcludeModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label>Select Entry 1</label>
+                  <Select
+                    options={entryOptions}
+                    value={selectedEntry1}
+                    onChange={setSelectedEntry1}
+                    placeholder="Select an entry"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label>Select Entry 2</label>
+                  <Select
+                    options={entryOptions}
+                    value={selectedEntry2}
+                    onChange={setSelectedEntry2}
+                    placeholder="Select an entry"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowExcludeModal(false); // Close the modal
+                    window.location.reload(); // Refresh the page
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleExcludeSubmit}
+                >
+                  Exclude
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

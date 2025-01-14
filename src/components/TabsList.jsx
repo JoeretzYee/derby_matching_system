@@ -4,16 +4,14 @@ import Select from "react-select";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
 import { db, deleteDoc, doc, updateDoc } from "../firebase"; // import updateDoc
+import Match from "./Match";
 
-function TabsList({ entries }) {
+function TabsList({ entries, date, eventName, eventId }) {
   const [activeTab, setActiveTab] = useState("Entries");
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentEntry, setCurrentEntry] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showExcludeModal, setShowExcludeModal] = useState(false);
-  const [selectedEntry1, setSelectedEntry1] = useState(null);
-  const [selectedEntry2, setSelectedEntry2] = useState(null);
-  const [excludedPairs, setExcludedPairs] = useState([]); // Store excluded pairs
+
   const [stags, setStags] = useState([]); // all stags chicken
   const [bullstag, setBullstag] = useState([]); // all bullstag chicken
   const [cocks, setCocks] = useState([]); // all cock chicken
@@ -44,51 +42,26 @@ function TabsList({ entries }) {
     console.table(cocks);
   }, [entries]);
 
-  const entryOptions = entries.map((entry) => ({
-    value: entry.id,
-    label: entry.entryName,
-  }));
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
 
-  const handleExcludeSubmit = () => {
-    if (selectedEntry1 && selectedEntry2) {
-      if (selectedEntry1.value === selectedEntry2.value) {
-        alert("Cannot exclude the same entry!");
-        return;
-      }
-
-      // Normalize and check if the pair is already excluded
-      const normalizePair = (entry1, entry2) => [entry1, entry2].sort();
-      const isAlreadyExcluded = excludedPairs.some(
-        (pair) =>
-          JSON.stringify(normalizePair(pair.entry1, pair.entry2)) ===
-          JSON.stringify(
-            normalizePair(selectedEntry1.value, selectedEntry2.value)
-          )
-      );
-      if (isAlreadyExcluded) {
-        alert("This pair is already excluded!");
-        return;
-      }
-
-      // Add the excluded pair to the list
-      setExcludedPairs((prev) => [
-        ...prev,
-        { entry1: selectedEntry1.value, entry2: selectedEntry2.value },
-      ]);
-
-      Swal.fire({
-        icon: "success",
-        title: "Excluded",
-        text: "The selected entries have been excluded from matching.",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-
-      // Reset the selections after submission
-      setSelectedEntry1(null);
-      setSelectedEntry2(null);
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      console.error("Invalid date:", dateString);
+      return "";
     }
-    setShowExcludeModal(false);
+
+    // Format the date as "January 19, 2025 at 9:23 PM"
+    const options = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: true,
+    };
+    return date.toLocaleString("en-US", options).replace(",", " at");
   };
 
   // Handle delete entry
@@ -259,19 +232,22 @@ function TabsList({ entries }) {
                     </ul>
                   </td>
                   <td>
-                    <button
-                      onClick={() => handleEditEntry(entry)} // trigger edit
-                      className="btn btn-sm btn-primary d-flex align-items-center"
-                    >
-                      <FaEdit />
-                    </button>
-                    &nbsp;
-                    <button
-                      onClick={() => handleDeleteEntry(entry.id)}
-                      className="btn btn-sm btn-danger d-flex align-items-center"
-                    >
-                      <FaTrashAlt />
-                    </button>
+                    <div className="d-flex gap-2">
+                      {" "}
+                      {/* Flex container for buttons */}
+                      <button
+                        onClick={() => handleEditEntry(entry)} // Trigger edit
+                        className="btn btn-sm btn-primary d-flex align-items-center"
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteEntry(entry.id)}
+                        className="btn btn-sm btn-danger d-flex align-items-center"
+                      >
+                        <FaTrashAlt />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -289,657 +265,34 @@ function TabsList({ entries }) {
       );
     }
     // Matching tab content
-    if (activeTab === "Matching") {
-      const matchResults = [];
-      const matchedChickens = new Set();
 
-      // Iterate through entries
-      entries.forEach((entry, i) => {
-        const chickenEntries = entry.chickenEntries || [];
-        chickenEntries.forEach((chicken) => {
-          const chickenKey = `${entry.entryName}-${chicken.weight}`;
-
-          // Skip if already matched
-          if (matchedChickens.has(chickenKey)) {
-            return;
-          }
-
-          let matched = false;
-
-          // Find a match for the current chicken
-          entries.forEach((otherEntry, j) => {
-            if (i !== j) {
-              const otherChickenEntries = otherEntry.chickenEntries || [];
-              otherChickenEntries.forEach((otherChicken) => {
-                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
-
-                if (
-                  !matchedChickens.has(chickenKey) &&
-                  !matchedChickens.has(otherChickenKey)
-                ) {
-                  const weight1 = parseFloat(chicken.weight);
-                  const weight2 = parseFloat(otherChicken.weight);
-                  const weightDifference = Math.abs(weight1 - weight2);
-
-                  if (weightDifference <= 35) {
-                    // Match found
-                    matchResults.push({
-                      fightNumber: matchResults.length + 1,
-                      entryName1: entry.entryName,
-                      ownerName1: entry.ownerName,
-                      chickenName1: chicken.chickenName || "none",
-                      weight1: weight1.toFixed(2),
-                      entryName2: otherEntry.entryName,
-                      ownerName2: otherEntry.ownerName,
-                      chickenName2: otherChicken.chickenName || "none",
-                      weight2: weight2.toFixed(2),
-                    });
-
-                    matchedChickens.add(chickenKey);
-                    matchedChickens.add(otherChickenKey);
-                    matched = true;
-                  }
-                }
-              });
-            }
-          });
-
-          // If no match is found, mark the entry as standby
-          if (!matched) {
-            matchResults.push({
-              fightNumber: matchResults.length + 1,
-              entryName1: `${entry.entryName} (standby)`,
-              ownerName1: entry.ownerName,
-              chickenName1: chicken.chickenName || "none",
-              weight1: parseFloat(chicken.weight).toFixed(2),
-              entryName2: "",
-              ownerName2: "",
-              chickenName2: "",
-              weight2: "",
-            });
-          }
-        });
-      });
-
-      // Generate Excel matching file
-      const generateExcelMatching = () => {
-        const tableData = matchResults.map((result, index) => ({
-          "Fight #": index + 1,
-          "Entry Name": result.entryName1,
-          "Owner Name": result.ownerName1,
-          "Wing/Leg #": result.chickenName1,
-          Weight: result.weight1,
-          "Matched Entry Name": result.entryName2,
-          "Matched Owner Name": result.ownerName2,
-          "Matched Chicken Name": result.chickenName2,
-          "Matched Weight": result.weight2,
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(tableData);
-
-        // Column width calculation
-        const columnWidths = Object.keys(tableData[0]).map((key) => ({
-          wch: Math.max(
-            key.length,
-            ...tableData.map((row) =>
-              row[key] ? row[key].toString().length : 0
-            )
-          ),
-        }));
-
-        worksheet["!cols"] = columnWidths;
-
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
-
-        XLSX.writeFile(workbook, "MatchingResults.xlsx");
-      };
-
-      return (
-        <div>
-          <div className="d-flex align-items-center justify-content-between">
-            <h3>Matching</h3>
-            <div className="d-flex align-items-center gap-2">
-              <button
-                onClick={() => setShowExcludeModal(true)}
-                className="btn btn-md btn-primary"
-              >
-                Exclude
-              </button>
-              <button
-                onClick={generateExcelMatching}
-                className="btn btn-md btn-success "
-              >
-                Generate
-              </button>
-            </div>
-          </div>
-
-          <table className="table table-striped">
-            <thead>
-              <tr>
-                <th>Fight #</th>
-                <th>Entry Name</th>
-                <th>Owner Name</th>
-                <th>Wing/Leg #</th>
-                <th>Weight</th>
-                <th>Matched Entry Name</th>
-                <th>Matched Owner Name</th>
-                <th>Matched Wing/Leg #</th>
-                <th>Weight</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matchResults.map((result, index) => (
-                <tr key={index}>
-                  <td>{result.fightNumber}</td>
-                  <td>{result.entryName1}</td>
-                  <td>{result.ownerName1}</td>
-                  <td>{result.chickenName1}</td>
-                  <td>{result.weight1}</td>
-                  <td>{result.entryName2}</td>
-                  <td>{result.ownerName2}</td>
-                  <td>{result.chickenName2}</td>
-                  <td>{result.weight2}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
     if (activeTab === "Stag") {
-      const matchResults = [];
-      const matchedChickens = new Set();
-
-      // Iterate through entries
-      stags?.forEach((entry, i) => {
-        const chickenEntries = entry.chickenEntries || [];
-        chickenEntries.forEach((chicken) => {
-          const chickenKey = `${entry.entryName}-${chicken.weight}`;
-
-          // Skip if already matched
-          if (matchedChickens.has(chickenKey)) {
-            return;
-          }
-
-          let matched = false;
-
-          // Find a match for the current chicken
-          stags?.forEach((otherEntry, j) => {
-            if (i !== j) {
-              const otherChickenEntries = otherEntry.chickenEntries || [];
-              otherChickenEntries.forEach((otherChicken) => {
-                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
-
-                if (
-                  !matchedChickens.has(chickenKey) &&
-                  !matchedChickens.has(otherChickenKey)
-                ) {
-                  const weight1 = parseFloat(chicken.weight);
-                  const weight2 = parseFloat(otherChicken.weight);
-                  const weightDifference = Math.abs(weight1 - weight2);
-
-                  if (weightDifference <= 35) {
-                    // Match found
-                    matchResults.push({
-                      fightNumber: matchResults.length + 1,
-                      entryName1: entry.entryName,
-                      ownerName1: entry.ownerName,
-                      chickenName1: chicken.chickenName || "none",
-                      weight1: weight1.toFixed(2),
-                      entryName2: otherEntry.entryName,
-                      ownerName2: otherEntry.ownerName,
-                      chickenName2: otherChicken.chickenName || "none",
-                      weight2: weight2.toFixed(2),
-                    });
-
-                    matchedChickens.add(chickenKey);
-                    matchedChickens.add(otherChickenKey);
-                    matched = true;
-                  }
-                }
-              });
-            }
-          });
-
-          // If no match is found, mark the entry as standby
-          if (!matched) {
-            matchResults.push({
-              fightNumber: matchResults.length + 1,
-              entryName1: `${entry.entryName} (standby)`,
-              ownerName1: entry.ownerName,
-              chickenName1: chicken.chickenName || "none",
-              weight1: parseFloat(chicken.weight).toFixed(2),
-              entryName2: "",
-              ownerName2: "",
-              chickenName2: "",
-              weight2: "",
-            });
-          }
-        });
-      });
-
-      // Generate Excel matching file
-      const generateExcelStagMatching = () => {
-        const tableData = matchResults.map((result, index) => ({
-          "Fight #": index + 1,
-          "Entry Name": result.entryName1,
-          "Owner Name": result.ownerName1,
-          "Wing/Leg #": result.chickenName1,
-          Weight: result.weight1,
-          "Matched Entry Name": result.entryName2,
-          "Matched Owner Name": result.ownerName2,
-          "Matched Chicken Name": result.chickenName2,
-          "Matched Weight": result.weight2,
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(tableData);
-
-        // Column width calculation
-        const columnWidths = Object.keys(tableData[0]).map((key) => ({
-          wch: Math.max(
-            key.length,
-            ...tableData.map((row) =>
-              row[key] ? row[key].toString().length : 0
-            )
-          ),
-        }));
-
-        worksheet["!cols"] = columnWidths;
-
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
-
-        XLSX.writeFile(workbook, "StagMatchingResults.xlsx");
-      };
       return (
         <div>
           <div className="d-flex align-items-center justify-content-between">
             <h3>Stag Matching</h3>
-            <div className="d-flex align-items-center gap-2">
-              <button
-                onClick={() => setShowExcludeModal(true)}
-                className="btn btn-md btn-primary"
-              >
-                Exclude
-              </button>
-              <button
-                className="btn btn-md btn-success"
-                onClick={generateExcelStagMatching}
-              >
-                Generate
-              </button>
-            </div>
           </div>
-          <table className="table table-striped">
-            <thead>
-              <tr>
-                <th>Fight #</th>
-                <th>Entry Name</th>
-                <th>Owner Name</th>
-                <th>Wing/Leg #</th>
-                <th>Weight</th>
-                <th>Matched Entry Name</th>
-                <th>Matched Owner Name</th>
-                <th>Matched Wing/Leg #</th>
-                <th>Weight</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stags?.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="text-center">
-                    No Stag Fight
-                  </td>
-                </tr>
-              ) : (
-                matchResults.map((result, index) => (
-                  <tr key={index}>
-                    <td>{result.fightNumber}</td>
-                    <td>{result.entryName1}</td>
-                    <td>{result.ownerName1}</td>
-                    <td>{result.chickenName1}</td>
-                    <td>{result.weight1}</td>
-                    <td>{result.entryName2}</td>
-                    <td>{result.ownerName2}</td>
-                    <td>{result.chickenName2}</td>
-                    <td>{result.weight2}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Match data={stags} />
         </div>
       );
     }
     if (activeTab === "Bullstag") {
-      const matchResults = [];
-      const matchedChickens = new Set();
-
-      // Iterate through entries
-      bullstag?.forEach((entry, i) => {
-        const chickenEntries = entry.chickenEntries || [];
-        chickenEntries.forEach((chicken) => {
-          const chickenKey = `${entry.entryName}-${chicken.weight}`;
-
-          // Skip if already matched
-          if (matchedChickens.has(chickenKey)) {
-            return;
-          }
-
-          let matched = false;
-
-          // Find a match for the current chicken
-          bullstag?.forEach((otherEntry, j) => {
-            if (i !== j) {
-              const otherChickenEntries = otherEntry.chickenEntries || [];
-              otherChickenEntries.forEach((otherChicken) => {
-                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
-
-                if (
-                  !matchedChickens.has(chickenKey) &&
-                  !matchedChickens.has(otherChickenKey)
-                ) {
-                  const weight1 = parseFloat(chicken.weight);
-                  const weight2 = parseFloat(otherChicken.weight);
-                  const weightDifference = Math.abs(weight1 - weight2);
-
-                  if (weightDifference <= 35) {
-                    // Match found
-                    matchResults.push({
-                      fightNumber: matchResults.length + 1,
-                      entryName1: entry.entryName,
-                      ownerName1: entry.ownerName,
-                      chickenName1: chicken.chickenName || "none",
-                      weight1: weight1.toFixed(2),
-                      entryName2: otherEntry.entryName,
-                      ownerName2: otherEntry.ownerName,
-                      chickenName2: otherChicken.chickenName || "none",
-                      weight2: weight2.toFixed(2),
-                    });
-
-                    matchedChickens.add(chickenKey);
-                    matchedChickens.add(otherChickenKey);
-                    matched = true;
-                  }
-                }
-              });
-            }
-          });
-
-          // If no match is found, mark the entry as standby
-          if (!matched) {
-            matchResults.push({
-              fightNumber: matchResults.length + 1,
-              entryName1: `${entry.entryName} (standby)`,
-              ownerName1: entry.ownerName,
-              chickenName1: chicken.chickenName || "none",
-              weight1: parseFloat(chicken.weight).toFixed(2),
-              entryName2: "",
-              ownerName2: "",
-              chickenName2: "",
-              weight2: "",
-            });
-          }
-        });
-      });
-
-      // Generate Excel matching file
-      const generateExcelBullstagMatching = () => {
-        const tableData = matchResults.map((result, index) => ({
-          "Fight #": index + 1,
-          "Entry Name": result.entryName1,
-          "Owner Name": result.ownerName1,
-          "Wing/Leg #": result.chickenName1,
-          Weight: result.weight1,
-          "Matched Entry Name": result.entryName2,
-          "Matched Owner Name": result.ownerName2,
-          "Matched Chicken Name": result.chickenName2,
-          "Matched Weight": result.weight2,
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(tableData);
-
-        // Column width calculation
-        const columnWidths = Object.keys(tableData[0]).map((key) => ({
-          wch: Math.max(
-            key.length,
-            ...tableData.map((row) =>
-              row[key] ? row[key].toString().length : 0
-            )
-          ),
-        }));
-
-        worksheet["!cols"] = columnWidths;
-
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
-
-        XLSX.writeFile(workbook, "BullstagMatchingResults.xlsx");
-      };
       return (
         <div>
           <div className="d-flex align-items-center justify-content-between">
             <h3>Bullstag Matching</h3>
-            <div className="d-flex align-items-center gap-2">
-              <button
-                onClick={() => setShowExcludeModal(true)}
-                className="btn btn-md btn-primary"
-              >
-                Exclude
-              </button>
-              <button
-                className="btn btn-md btn-success"
-                onClick={generateExcelBullstagMatching}
-              >
-                Generate
-              </button>
-            </div>
           </div>
-          <table className="table table-striped">
-            <thead>
-              <tr>
-                <th>Fight #</th>
-                <th>Entry Name</th>
-                <th>Owner Name</th>
-                <th>Wing/Leg #</th>
-                <th>Weight</th>
-                <th>Matched Entry Name</th>
-                <th>Matched Owner Name</th>
-                <th>Matched Wing/Leg #</th>
-                <th>Weight</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bullstag?.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="text-center">
-                    No Bullstag Fight
-                  </td>
-                </tr>
-              ) : (
-                matchResults.map((result, index) => (
-                  <tr key={index}>
-                    <td>{result.fightNumber}</td>
-                    <td>{result.entryName1}</td>
-                    <td>{result.ownerName1}</td>
-                    <td>{result.chickenName1}</td>
-                    <td>{result.weight1}</td>
-                    <td>{result.entryName2}</td>
-                    <td>{result.ownerName2}</td>
-                    <td>{result.chickenName2}</td>
-                    <td>{result.weight2}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Match data={bullstag} />
         </div>
       );
     }
     if (activeTab === "Cock") {
-      const matchResults = [];
-      const matchedChickens = new Set();
-
-      // Iterate through entries
-      cocks?.forEach((entry, i) => {
-        const chickenEntries = entry.chickenEntries || [];
-        chickenEntries.forEach((chicken) => {
-          const chickenKey = `${entry.entryName}-${chicken.weight}`;
-
-          // Skip if already matched
-          if (matchedChickens.has(chickenKey)) {
-            return;
-          }
-
-          let matched = false;
-
-          // Find a match for the current chicken
-          cocks?.forEach((otherEntry, j) => {
-            if (i !== j) {
-              const otherChickenEntries = otherEntry.chickenEntries || [];
-              otherChickenEntries.forEach((otherChicken) => {
-                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
-
-                if (
-                  !matchedChickens.has(chickenKey) &&
-                  !matchedChickens.has(otherChickenKey)
-                ) {
-                  const weight1 = parseFloat(chicken.weight);
-                  const weight2 = parseFloat(otherChicken.weight);
-                  const weightDifference = Math.abs(weight1 - weight2);
-
-                  if (weightDifference <= 35) {
-                    // Match found
-                    matchResults.push({
-                      fightNumber: matchResults.length + 1,
-                      entryName1: entry.entryName,
-                      ownerName1: entry.ownerName,
-                      chickenName1: chicken.chickenName || "none",
-                      weight1: weight1.toFixed(2),
-                      entryName2: otherEntry.entryName,
-                      ownerName2: otherEntry.ownerName,
-                      chickenName2: otherChicken.chickenName || "none",
-                      weight2: weight2.toFixed(2),
-                    });
-
-                    matchedChickens.add(chickenKey);
-                    matchedChickens.add(otherChickenKey);
-                    matched = true;
-                  }
-                }
-              });
-            }
-          });
-
-          // If no match is found, mark the entry as standby
-          if (!matched) {
-            matchResults.push({
-              fightNumber: matchResults.length + 1,
-              entryName1: `${entry.entryName} (standby)`,
-              ownerName1: entry.ownerName,
-              chickenName1: chicken.chickenName || "none",
-              weight1: parseFloat(chicken.weight).toFixed(2),
-              entryName2: "",
-              ownerName2: "",
-              chickenName2: "",
-              weight2: "",
-            });
-          }
-        });
-      });
-
-      // Generate Excel matching file
-      const generateExcelCockMatching = () => {
-        const tableData = matchResults.map((result, index) => ({
-          "Fight #": index + 1,
-          "Entry Name": result.entryName1,
-          "Owner Name": result.ownerName1,
-          "Wing/Leg #": result.chickenName1,
-          Weight: result.weight1,
-          "Matched Entry Name": result.entryName2,
-          "Matched Owner Name": result.ownerName2,
-          "Matched Chicken Name": result.chickenName2,
-          "Matched Weight": result.weight2,
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(tableData);
-
-        // Column width calculation
-        const columnWidths = Object.keys(tableData[0]).map((key) => ({
-          wch: Math.max(
-            key.length,
-            ...tableData.map((row) =>
-              row[key] ? row[key].toString().length : 0
-            )
-          ),
-        }));
-
-        worksheet["!cols"] = columnWidths;
-
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
-
-        XLSX.writeFile(workbook, "CocksMatchingResults.xlsx");
-      };
       return (
         <div>
           <div className="d-flex align-items-center justify-content-between">
             <h3>Cock Matching</h3>
-            <div className="d-flex align-items-center gap-2">
-              <button
-                onClick={() => setShowExcludeModal(true)}
-                className="btn btn-md btn-primary"
-              >
-                Exclude
-              </button>
-              <button
-                className="btn btn-md btn-success"
-                onClick={generateExcelCockMatching}
-              >
-                Generate
-              </button>
-            </div>
           </div>
-          <table className="table table-striped">
-            <thead>
-              <tr>
-                <th>Fight #</th>
-                <th>Entry Name</th>
-                <th>Owner Name</th>
-                <th>Wing/Leg #</th>
-                <th>Weight</th>
-                <th>Matched Entry Name</th>
-                <th>Matched Owner Name</th>
-                <th>Matched Wing/Leg #</th>
-                <th>Weight</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cocks?.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="text-center">
-                    No Cock Fight
-                  </td>
-                </tr>
-              ) : (
-                matchResults.map((result, index) => (
-                  <tr key={index}>
-                    <td>{result.fightNumber}</td>
-                    <td>{result.entryName1}</td>
-                    <td>{result.ownerName1}</td>
-                    <td>{result.chickenName1}</td>
-                    <td>{result.weight1}</td>
-                    <td>{result.entryName2}</td>
-                    <td>{result.ownerName2}</td>
-                    <td>{result.chickenName2}</td>
-                    <td>{result.weight2}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Match data={cocks} />
         </div>
       );
     }
@@ -957,14 +310,7 @@ function TabsList({ entries }) {
             Entries
           </button>
         </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "Matching" ? "active" : ""}`}
-            onClick={() => setActiveTab("Matching")}
-          >
-            Matching
-          </button>
-        </li>
+
         <li className="nav-item">
           <button
             className={`nav-link ${activeTab === "Stag" ? "active" : ""}`}
@@ -992,59 +338,6 @@ function TabsList({ entries }) {
       </ul>
       {/* Tab content */}
       <div className="tab-content mt-3">{renderTabContent()}</div>
-      {/* Exclude Modal */}
-      {showExcludeModal && (
-        <div className="modal d-block">
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Exclude Entries</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowExcludeModal(false)}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <div className="mb-3">
-                  <label>Select Entry 1</label>
-                  <Select
-                    options={entryOptions}
-                    value={selectedEntry1}
-                    onChange={setSelectedEntry1}
-                    placeholder="Select an entry"
-                  />
-                </div>
-                <div className="mb-3">
-                  <label>Select Entry 2</label>
-                  <Select
-                    options={entryOptions}
-                    value={selectedEntry2}
-                    onChange={setSelectedEntry2}
-                    placeholder="Select an entry"
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowExcludeModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleExcludeSubmit}
-                >
-                  Exclude
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
