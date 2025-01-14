@@ -1,8 +1,32 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { db, collection, onSnapshot } from "../firebase";
 
-function Match({ data }) {
+function Match({ data, eventId }) {
+  const [excludedPairs, setExcludedPairs] = useState([]);
   const matchResults = [];
   const matchedChickens = new Set();
+
+  // Fetch excluded entries from Firebase
+  useEffect(() => {
+    const fetchExcludedPairs = () => {
+      const excludedRef = collection(db, "excludedEntries");
+
+      const unsubscribe = onSnapshot(excludedRef, (snapshot) => {
+        const fetchedExcludedPairs = [];
+        snapshot.forEach((doc) => {
+          const excludedData = doc.data();
+          if (excludedData.eventId === eventId) {
+            fetchedExcludedPairs.push(...excludedData.excluded);
+          }
+        });
+        setExcludedPairs(fetchedExcludedPairs);
+      });
+
+      return () => unsubscribe(); // Cleanup listener on component unmount
+    };
+
+    fetchExcludedPairs();
+  }, [eventId]);
 
   // Iterate through entries
   data?.forEach((entry, i) => {
@@ -24,9 +48,19 @@ function Match({ data }) {
           otherChickenEntries.forEach((otherChicken) => {
             const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
 
+            // Skip if excluded
+            const isExcluded = excludedPairs.some(
+              (pair) =>
+                (pair.entry1 === entry.entryName &&
+                  pair.entry2 === otherEntry.entryName) ||
+                (pair.entry1 === otherEntry.entryName &&
+                  pair.entry2 === entry.entryName)
+            );
+
             if (
               !matchedChickens.has(chickenKey) &&
-              !matchedChickens.has(otherChickenKey)
+              !matchedChickens.has(otherChickenKey) &&
+              !isExcluded
             ) {
               const weight1 = parseFloat(chicken.weight);
               const weight2 = parseFloat(otherChicken.weight);

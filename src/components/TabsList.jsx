@@ -272,7 +272,7 @@ function TabsList({ entries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Stag Matching</h3>
           </div>
-          <Match data={stags} />
+          <Match data={stags} eventId={eventId} />
         </div>
       );
     }
@@ -282,7 +282,7 @@ function TabsList({ entries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Bullstag Matching</h3>
           </div>
-          <Match data={bullstag} />
+          <Match data={bullstag} eventId={eventId} />
         </div>
       );
     }
@@ -292,7 +292,7 @@ function TabsList({ entries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Cock Matching</h3>
           </div>
-          <Match data={cocks} />
+          <Match data={cocks} eventId={eventId} />
         </div>
       );
     }
