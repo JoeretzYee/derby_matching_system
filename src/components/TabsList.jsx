@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaEdit, FaTrashAlt } from "react-icons/fa";
 import Select from "react-select";
 import Swal from "sweetalert2";
@@ -14,6 +14,35 @@ function TabsList({ entries }) {
   const [selectedEntry1, setSelectedEntry1] = useState(null);
   const [selectedEntry2, setSelectedEntry2] = useState(null);
   const [excludedPairs, setExcludedPairs] = useState([]); // Store excluded pairs
+  const [stags, setStags] = useState([]); // all stags chicken
+  const [bullstag, setBullstag] = useState([]); // all bullstag chicken
+  const [cocks, setCocks] = useState([]); // all cock chicken
+
+  useEffect(() => {
+    const stags = [];
+    const bullstags = [];
+    const cocks = [];
+
+    entries.forEach((entry) => {
+      // Filter chickenEntries for each entry
+      entry.chickenEntries.forEach((chicken) => {
+        if (chicken.type === "stag") {
+          stags.push({ ...entry, chickenEntries: [chicken] });
+        } else if (chicken.type === "bullstag") {
+          bullstags.push({ ...entry, chickenEntries: [chicken] });
+        } else if (chicken.type === "cock") {
+          cocks.push({ ...entry, chickenEntries: [chicken] });
+        }
+      });
+    });
+
+    // Set the state once with the accumulated arrays
+    setStags(stags);
+    setBullstag(bullstags);
+    setCocks(cocks);
+    console.log("cocks");
+    console.table(cocks);
+  }, [entries]);
 
   const entryOptions = entries.map((entry) => ({
     value: entry.id,
@@ -62,7 +91,6 @@ function TabsList({ entries }) {
     setShowExcludeModal(false);
   };
 
-  console.log("excluded: ", excludedPairs);
   // Handle delete entry
   const handleDeleteEntry = async (entryId) => {
     try {
@@ -193,6 +221,7 @@ function TabsList({ entries }) {
           </div>
           <div className="d-flex align-items-center justify-content-between">
             <h3>Entries</h3>
+
             <button
               onClick={generateExcelEntries}
               className="btn btn-md btn-success"
@@ -264,16 +293,6 @@ function TabsList({ entries }) {
       const matchResults = [];
       const matchedChickens = new Set();
 
-      // Function to check if the pair is excluded
-      const isExcluded = (entry1, entry2) => {
-        const normalizePair = (entry1, entry2) => [entry1, entry2].sort();
-        return excludedPairs.some(
-          (pair) =>
-            JSON.stringify(normalizePair(pair.entry1, pair.entry2)) ===
-            JSON.stringify(normalizePair(entry1, entry2))
-        );
-      };
-
       // Iterate through entries
       entries.forEach((entry, i) => {
         const chickenEntries = entry.chickenEntries || [];
@@ -296,8 +315,7 @@ function TabsList({ entries }) {
 
                 if (
                   !matchedChickens.has(chickenKey) &&
-                  !matchedChickens.has(otherChickenKey) &&
-                  !isExcluded(entry.entryName, otherEntry.entryName) // Skip if excluded
+                  !matchedChickens.has(otherChickenKey)
                 ) {
                   const weight1 = parseFloat(chicken.weight);
                   const weight2 = parseFloat(otherChicken.weight);
@@ -342,7 +360,7 @@ function TabsList({ entries }) {
           }
         });
       });
-      console.log("Match Results:", matchResults); // Log the final results
+
       // Generate Excel matching file
       const generateExcelMatching = () => {
         const tableData = matchResults.map((result, index) => ({
@@ -430,6 +448,501 @@ function TabsList({ entries }) {
         </div>
       );
     }
+    if (activeTab === "Stag") {
+      const matchResults = [];
+      const matchedChickens = new Set();
+
+      // Iterate through entries
+      stags?.forEach((entry, i) => {
+        const chickenEntries = entry.chickenEntries || [];
+        chickenEntries.forEach((chicken) => {
+          const chickenKey = `${entry.entryName}-${chicken.weight}`;
+
+          // Skip if already matched
+          if (matchedChickens.has(chickenKey)) {
+            return;
+          }
+
+          let matched = false;
+
+          // Find a match for the current chicken
+          stags?.forEach((otherEntry, j) => {
+            if (i !== j) {
+              const otherChickenEntries = otherEntry.chickenEntries || [];
+              otherChickenEntries.forEach((otherChicken) => {
+                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
+
+                if (
+                  !matchedChickens.has(chickenKey) &&
+                  !matchedChickens.has(otherChickenKey)
+                ) {
+                  const weight1 = parseFloat(chicken.weight);
+                  const weight2 = parseFloat(otherChicken.weight);
+                  const weightDifference = Math.abs(weight1 - weight2);
+
+                  if (weightDifference <= 35) {
+                    // Match found
+                    matchResults.push({
+                      fightNumber: matchResults.length + 1,
+                      entryName1: entry.entryName,
+                      ownerName1: entry.ownerName,
+                      chickenName1: chicken.chickenName || "none",
+                      weight1: weight1.toFixed(2),
+                      entryName2: otherEntry.entryName,
+                      ownerName2: otherEntry.ownerName,
+                      chickenName2: otherChicken.chickenName || "none",
+                      weight2: weight2.toFixed(2),
+                    });
+
+                    matchedChickens.add(chickenKey);
+                    matchedChickens.add(otherChickenKey);
+                    matched = true;
+                  }
+                }
+              });
+            }
+          });
+
+          // If no match is found, mark the entry as standby
+          if (!matched) {
+            matchResults.push({
+              fightNumber: matchResults.length + 1,
+              entryName1: `${entry.entryName} (standby)`,
+              ownerName1: entry.ownerName,
+              chickenName1: chicken.chickenName || "none",
+              weight1: parseFloat(chicken.weight).toFixed(2),
+              entryName2: "",
+              ownerName2: "",
+              chickenName2: "",
+              weight2: "",
+            });
+          }
+        });
+      });
+
+      // Generate Excel matching file
+      const generateExcelStagMatching = () => {
+        const tableData = matchResults.map((result, index) => ({
+          "Fight #": index + 1,
+          "Entry Name": result.entryName1,
+          "Owner Name": result.ownerName1,
+          "Wing/Leg #": result.chickenName1,
+          Weight: result.weight1,
+          "Matched Entry Name": result.entryName2,
+          "Matched Owner Name": result.ownerName2,
+          "Matched Chicken Name": result.chickenName2,
+          "Matched Weight": result.weight2,
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(tableData);
+
+        // Column width calculation
+        const columnWidths = Object.keys(tableData[0]).map((key) => ({
+          wch: Math.max(
+            key.length,
+            ...tableData.map((row) =>
+              row[key] ? row[key].toString().length : 0
+            )
+          ),
+        }));
+
+        worksheet["!cols"] = columnWidths;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
+
+        XLSX.writeFile(workbook, "StagMatchingResults.xlsx");
+      };
+      return (
+        <div>
+          <div className="d-flex align-items-center justify-content-between">
+            <h3>Stag Matching</h3>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                onClick={() => setShowExcludeModal(true)}
+                className="btn btn-md btn-primary"
+              >
+                Exclude
+              </button>
+              <button
+                className="btn btn-md btn-success"
+                onClick={generateExcelStagMatching}
+              >
+                Generate
+              </button>
+            </div>
+          </div>
+          <table className="table table-striped">
+            <thead>
+              <tr>
+                <th>Fight #</th>
+                <th>Entry Name</th>
+                <th>Owner Name</th>
+                <th>Wing/Leg #</th>
+                <th>Weight</th>
+                <th>Matched Entry Name</th>
+                <th>Matched Owner Name</th>
+                <th>Matched Wing/Leg #</th>
+                <th>Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stags?.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="text-center">
+                    No Stag Fight
+                  </td>
+                </tr>
+              ) : (
+                matchResults.map((result, index) => (
+                  <tr key={index}>
+                    <td>{result.fightNumber}</td>
+                    <td>{result.entryName1}</td>
+                    <td>{result.ownerName1}</td>
+                    <td>{result.chickenName1}</td>
+                    <td>{result.weight1}</td>
+                    <td>{result.entryName2}</td>
+                    <td>{result.ownerName2}</td>
+                    <td>{result.chickenName2}</td>
+                    <td>{result.weight2}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    if (activeTab === "Bullstag") {
+      const matchResults = [];
+      const matchedChickens = new Set();
+
+      // Iterate through entries
+      bullstag?.forEach((entry, i) => {
+        const chickenEntries = entry.chickenEntries || [];
+        chickenEntries.forEach((chicken) => {
+          const chickenKey = `${entry.entryName}-${chicken.weight}`;
+
+          // Skip if already matched
+          if (matchedChickens.has(chickenKey)) {
+            return;
+          }
+
+          let matched = false;
+
+          // Find a match for the current chicken
+          bullstag?.forEach((otherEntry, j) => {
+            if (i !== j) {
+              const otherChickenEntries = otherEntry.chickenEntries || [];
+              otherChickenEntries.forEach((otherChicken) => {
+                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
+
+                if (
+                  !matchedChickens.has(chickenKey) &&
+                  !matchedChickens.has(otherChickenKey)
+                ) {
+                  const weight1 = parseFloat(chicken.weight);
+                  const weight2 = parseFloat(otherChicken.weight);
+                  const weightDifference = Math.abs(weight1 - weight2);
+
+                  if (weightDifference <= 35) {
+                    // Match found
+                    matchResults.push({
+                      fightNumber: matchResults.length + 1,
+                      entryName1: entry.entryName,
+                      ownerName1: entry.ownerName,
+                      chickenName1: chicken.chickenName || "none",
+                      weight1: weight1.toFixed(2),
+                      entryName2: otherEntry.entryName,
+                      ownerName2: otherEntry.ownerName,
+                      chickenName2: otherChicken.chickenName || "none",
+                      weight2: weight2.toFixed(2),
+                    });
+
+                    matchedChickens.add(chickenKey);
+                    matchedChickens.add(otherChickenKey);
+                    matched = true;
+                  }
+                }
+              });
+            }
+          });
+
+          // If no match is found, mark the entry as standby
+          if (!matched) {
+            matchResults.push({
+              fightNumber: matchResults.length + 1,
+              entryName1: `${entry.entryName} (standby)`,
+              ownerName1: entry.ownerName,
+              chickenName1: chicken.chickenName || "none",
+              weight1: parseFloat(chicken.weight).toFixed(2),
+              entryName2: "",
+              ownerName2: "",
+              chickenName2: "",
+              weight2: "",
+            });
+          }
+        });
+      });
+
+      // Generate Excel matching file
+      const generateExcelBullstagMatching = () => {
+        const tableData = matchResults.map((result, index) => ({
+          "Fight #": index + 1,
+          "Entry Name": result.entryName1,
+          "Owner Name": result.ownerName1,
+          "Wing/Leg #": result.chickenName1,
+          Weight: result.weight1,
+          "Matched Entry Name": result.entryName2,
+          "Matched Owner Name": result.ownerName2,
+          "Matched Chicken Name": result.chickenName2,
+          "Matched Weight": result.weight2,
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(tableData);
+
+        // Column width calculation
+        const columnWidths = Object.keys(tableData[0]).map((key) => ({
+          wch: Math.max(
+            key.length,
+            ...tableData.map((row) =>
+              row[key] ? row[key].toString().length : 0
+            )
+          ),
+        }));
+
+        worksheet["!cols"] = columnWidths;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
+
+        XLSX.writeFile(workbook, "BullstagMatchingResults.xlsx");
+      };
+      return (
+        <div>
+          <div className="d-flex align-items-center justify-content-between">
+            <h3>Bullstag Matching</h3>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                onClick={() => setShowExcludeModal(true)}
+                className="btn btn-md btn-primary"
+              >
+                Exclude
+              </button>
+              <button
+                className="btn btn-md btn-success"
+                onClick={generateExcelBullstagMatching}
+              >
+                Generate
+              </button>
+            </div>
+          </div>
+          <table className="table table-striped">
+            <thead>
+              <tr>
+                <th>Fight #</th>
+                <th>Entry Name</th>
+                <th>Owner Name</th>
+                <th>Wing/Leg #</th>
+                <th>Weight</th>
+                <th>Matched Entry Name</th>
+                <th>Matched Owner Name</th>
+                <th>Matched Wing/Leg #</th>
+                <th>Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bullstag?.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="text-center">
+                    No Bullstag Fight
+                  </td>
+                </tr>
+              ) : (
+                matchResults.map((result, index) => (
+                  <tr key={index}>
+                    <td>{result.fightNumber}</td>
+                    <td>{result.entryName1}</td>
+                    <td>{result.ownerName1}</td>
+                    <td>{result.chickenName1}</td>
+                    <td>{result.weight1}</td>
+                    <td>{result.entryName2}</td>
+                    <td>{result.ownerName2}</td>
+                    <td>{result.chickenName2}</td>
+                    <td>{result.weight2}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    if (activeTab === "Cock") {
+      const matchResults = [];
+      const matchedChickens = new Set();
+
+      // Iterate through entries
+      cocks?.forEach((entry, i) => {
+        const chickenEntries = entry.chickenEntries || [];
+        chickenEntries.forEach((chicken) => {
+          const chickenKey = `${entry.entryName}-${chicken.weight}`;
+
+          // Skip if already matched
+          if (matchedChickens.has(chickenKey)) {
+            return;
+          }
+
+          let matched = false;
+
+          // Find a match for the current chicken
+          cocks?.forEach((otherEntry, j) => {
+            if (i !== j) {
+              const otherChickenEntries = otherEntry.chickenEntries || [];
+              otherChickenEntries.forEach((otherChicken) => {
+                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
+
+                if (
+                  !matchedChickens.has(chickenKey) &&
+                  !matchedChickens.has(otherChickenKey)
+                ) {
+                  const weight1 = parseFloat(chicken.weight);
+                  const weight2 = parseFloat(otherChicken.weight);
+                  const weightDifference = Math.abs(weight1 - weight2);
+
+                  if (weightDifference <= 35) {
+                    // Match found
+                    matchResults.push({
+                      fightNumber: matchResults.length + 1,
+                      entryName1: entry.entryName,
+                      ownerName1: entry.ownerName,
+                      chickenName1: chicken.chickenName || "none",
+                      weight1: weight1.toFixed(2),
+                      entryName2: otherEntry.entryName,
+                      ownerName2: otherEntry.ownerName,
+                      chickenName2: otherChicken.chickenName || "none",
+                      weight2: weight2.toFixed(2),
+                    });
+
+                    matchedChickens.add(chickenKey);
+                    matchedChickens.add(otherChickenKey);
+                    matched = true;
+                  }
+                }
+              });
+            }
+          });
+
+          // If no match is found, mark the entry as standby
+          if (!matched) {
+            matchResults.push({
+              fightNumber: matchResults.length + 1,
+              entryName1: `${entry.entryName} (standby)`,
+              ownerName1: entry.ownerName,
+              chickenName1: chicken.chickenName || "none",
+              weight1: parseFloat(chicken.weight).toFixed(2),
+              entryName2: "",
+              ownerName2: "",
+              chickenName2: "",
+              weight2: "",
+            });
+          }
+        });
+      });
+
+      // Generate Excel matching file
+      const generateExcelCockMatching = () => {
+        const tableData = matchResults.map((result, index) => ({
+          "Fight #": index + 1,
+          "Entry Name": result.entryName1,
+          "Owner Name": result.ownerName1,
+          "Wing/Leg #": result.chickenName1,
+          Weight: result.weight1,
+          "Matched Entry Name": result.entryName2,
+          "Matched Owner Name": result.ownerName2,
+          "Matched Chicken Name": result.chickenName2,
+          "Matched Weight": result.weight2,
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(tableData);
+
+        // Column width calculation
+        const columnWidths = Object.keys(tableData[0]).map((key) => ({
+          wch: Math.max(
+            key.length,
+            ...tableData.map((row) =>
+              row[key] ? row[key].toString().length : 0
+            )
+          ),
+        }));
+
+        worksheet["!cols"] = columnWidths;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
+
+        XLSX.writeFile(workbook, "CocksMatchingResults.xlsx");
+      };
+      return (
+        <div>
+          <div className="d-flex align-items-center justify-content-between">
+            <h3>Cock Matching</h3>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                onClick={() => setShowExcludeModal(true)}
+                className="btn btn-md btn-primary"
+              >
+                Exclude
+              </button>
+              <button
+                className="btn btn-md btn-success"
+                onClick={generateExcelCockMatching}
+              >
+                Generate
+              </button>
+            </div>
+          </div>
+          <table className="table table-striped">
+            <thead>
+              <tr>
+                <th>Fight #</th>
+                <th>Entry Name</th>
+                <th>Owner Name</th>
+                <th>Wing/Leg #</th>
+                <th>Weight</th>
+                <th>Matched Entry Name</th>
+                <th>Matched Owner Name</th>
+                <th>Matched Wing/Leg #</th>
+                <th>Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cocks?.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="text-center">
+                    No Cock Fight
+                  </td>
+                </tr>
+              ) : (
+                matchResults.map((result, index) => (
+                  <tr key={index}>
+                    <td>{result.fightNumber}</td>
+                    <td>{result.entryName1}</td>
+                    <td>{result.ownerName1}</td>
+                    <td>{result.chickenName1}</td>
+                    <td>{result.weight1}</td>
+                    <td>{result.entryName2}</td>
+                    <td>{result.ownerName2}</td>
+                    <td>{result.chickenName2}</td>
+                    <td>{result.weight2}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
   };
 
   return (
@@ -450,6 +963,30 @@ function TabsList({ entries }) {
             onClick={() => setActiveTab("Matching")}
           >
             Matching
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeTab === "Stag" ? "active" : ""}`}
+            onClick={() => setActiveTab("Stag")}
+          >
+            Stag Matching
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeTab === "Bullstag" ? "active" : ""}`}
+            onClick={() => setActiveTab("Bullstag")}
+          >
+            Bullstag Matching
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeTab === "Cock" ? "active" : ""}`}
+            onClick={() => setActiveTab("Cock")}
+          >
+            Cock Matching
           </button>
         </li>
       </ul>
