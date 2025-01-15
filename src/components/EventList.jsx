@@ -27,14 +27,49 @@ function EventList() {
   const [selectedEntry2, setSelectedEntry2] = useState(null);
   const [excludedPairs, setExcludedPairs] = useState([]); // Store excluded pairs
   const [entries, setEntries] = useState([]); // Store all entries
+  const [toprankEntries, setToprankEntries] = useState([]); // Store all toprank entries
   const [cock, setCock] = useState("");
   const [stag, setStag] = useState("");
   const [bullstag, setBullstag] = useState("");
+  const [entryOptions, setEntryOptions] = useState([]);
 
-  const entryOptions = entries.map((entry) => ({
-    value: entry.id,
-    label: entry.entryName,
-  }));
+  // const entryOptions = entries.map((entry) => ({
+  //   value: entry.id,
+  //   label: entry.entryName,
+  // }));
+  const entryOptionss = async () => {
+    try {
+      // Fetch entries from the 'entries' collection
+      const entriesRef = collection(db, "entries");
+      const entriesSnapshot = await getDocs(entriesRef);
+      const entriesData = entriesSnapshot.docs.map((doc) => ({
+        value: doc.data().entryName,
+        label: doc.data().entryName,
+      }));
+
+      // Fetch entries from the 'toprank' collection
+      const toprankRef = collection(db, "toprank");
+      const toprankSnapshot = await getDocs(toprankRef);
+      const toprankData = toprankSnapshot.docs.map((doc) => ({
+        value: doc.data().entryName,
+        label: doc.data().entryName,
+      }));
+
+      // Combine both entries and toprankEntries
+      const combinedEntries = [...entriesData, ...toprankData];
+
+      setEntryOptions(combinedEntries);
+    } catch (error) {
+      console.error("Error fetching entries:", error);
+      return [];
+    }
+  };
+  // Fetch entry options when the component mounts
+  useEffect(() => {
+    entryOptionss(); // Call the async function to load entries
+  }, []);
+
+  // Usage
 
   //useEffect
   useEffect(() => {
@@ -61,24 +96,26 @@ function EventList() {
     fetchEventDetail();
   }, [eventId]);
 
-  // Real-time listener for entries
-  useEffect(() => {
-    const entriesQuery = query(
-      collection(db, "entries"),
-      where("eventId", "==", eventId)
-    );
+  const useRealTimeListener = (collectionName, setterFunction, eventId) => {
+    useEffect(() => {
+      const entriesQuery = query(
+        collection(db, collectionName),
+        where("eventId", "==", eventId)
+      );
 
-    const unsubscribe = onSnapshot(entriesQuery, (snapshot) => {
-      const fetchedEntries = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setEntries(fetchedEntries);
-    });
+      const unsubscribe = onSnapshot(entriesQuery, (snapshot) => {
+        const fetchedEntries = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setterFunction(fetchedEntries);
+      });
 
-    // Cleanup the listener on unmount
-    return () => unsubscribe();
-  }, [eventId]);
+      return () => unsubscribe(); // Cleanup on unmount
+    }, [collectionName, setterFunction, eventId]);
+  };
+  useRealTimeListener("entries", setEntries, eventId);
+  useRealTimeListener("toprank", setToprankEntries, eventId);
 
   //functions
   const handleExcludeSubmit = async () => {
@@ -180,7 +217,9 @@ function EventList() {
 
   const addEntryModal = async (data) => {
     try {
-      const dataEntryCollection = collection(db, "entries");
+      const collectionName = data.isToprankChecked ? "toprank" : "entries";
+      const dataEntryCollection = collection(db, collectionName);
+
       await addDoc(dataEntryCollection, {
         entryName: data.entryName,
         ownerName: data.ownerName,
@@ -193,14 +232,16 @@ function EventList() {
       Swal.fire({
         icon: "success",
         title: "Data Entry successfully added",
-        text: `Entry Name: ${data.entryName}`,
+        text: `Entry Name: ${data.entryName}${
+          data.isToprankChecked ? " (Top Rank)" : ""
+        }`,
         timer: 1500, // Auto-close after 1.5 seconds
         showConfirmButton: false,
       });
 
       setShowAddEntryModal(false);
     } catch (error) {
-      console.log(error);
+      console.error("Error adding entry:", error);
       Swal.fire({
         icon: "error",
         title: "Error",
@@ -258,6 +299,7 @@ function EventList() {
       <TabsList
         eventId={eventId}
         entries={entries}
+        toprankEntries={toprankEntries}
         date={eventDetail.when}
         eventName={eventDetail.name}
       />
