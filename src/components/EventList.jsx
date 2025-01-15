@@ -272,7 +272,7 @@ function EventList() {
         <div className="d-flex gap-2">
           <button
             onClick={() => setShowExcludeModal(true)}
-            className="btn btn-md btn-primary"
+            className="btn btn-md btn-dark"
           >
             Exclude
           </button>
@@ -282,7 +282,7 @@ function EventList() {
           >
             Add Entry
           </button>
-          <button className="btn btn-md btn-primary">Generate</button>
+          <button className="btn btn-md btn-success">Generate</button>
         </div>
         {/* Add Entry Modal */}
         <AddEntryModal
