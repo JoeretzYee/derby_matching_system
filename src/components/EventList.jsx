@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useReducer } from "react";
+import reducer, { initialState, actionTypes } from "../reducer";
 import Select from "react-select";
 import { useParams, Link } from "react-router-dom";
 import {
@@ -20,6 +21,7 @@ import { SlTag } from "react-icons/sl";
 function EventList() {
   //states
   const { eventId } = useParams();
+  const [state, dispatch] = useReducer(reducer, initialState);
   const [eventDetail, setEventDetail] = useState(null);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   const [showExcludeModal, setShowExcludeModal] = useState(false);
@@ -32,6 +34,14 @@ function EventList() {
   const [stag, setStag] = useState("");
   const [bullstag, setBullstag] = useState("");
   const [entryOptions, setEntryOptions] = useState([]);
+  const combinedArray = [
+    ...state.stags,
+    ...state.bullstags,
+    ...state.cocks,
+    ...state.toprankStags,
+    ...state.toprankBullstags,
+    ...state.toprankCocks,
+  ];
 
   // const entryOptions = entries.map((entry) => ({
   //   value: entry.id,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { db, collection, onSnapshot } from "../firebase";
 
-function Match({ data, eventId }) {
+function Match({ data, eventId, type }) {
   const [excludedPairs, setExcludedPairs] = useState([]);
   const matchResults = [];
   const matchedChickens = new Set();
@@ -105,6 +105,7 @@ function Match({ data, eventId }) {
       }
     });
   });
+
   return (
     <table className="table table-striped">
       <thead>
@@ -124,7 +125,7 @@ function Match({ data, eventId }) {
         {data?.length === 0 ? (
           <tr>
             <td colSpan="9" className="text-center">
-              No Cock Fight Included in the Event
+              No {type} Fight Included in the Event
             </td>
           </tr>
         ) : (

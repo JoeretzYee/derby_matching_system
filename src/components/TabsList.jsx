@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useReducer } from "react";
+import reducer, { initialState, actionTypes } from "../reducer";
 import { FaEdit, FaTrashAlt } from "react-icons/fa";
 import Select from "react-select";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
-import { db, deleteDoc, doc, updateDoc } from "../firebase"; // import updateDoc
+import {
+  db,
+  deleteDoc,
+  doc,
+  updateDoc,
+  collection,
+  onSnapshot,
+} from "../firebase"; // import updateDoc
 import Match from "./Match";
 
 function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
+  const [state, dispatch] = useReducer(reducer, initialState);
   const [activeTab, setActiveTab] = useState("Entries");
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentEntry, setCurrentEntry] = useState(null);
@@ -18,6 +27,9 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
   const [toprankStags, setToprankStags] = useState([]);
   const [toprankBullstag, setToprankBullstag] = useState([]);
   const [toprankCock, setToprankCock] = useState([]);
+  const [excludedPairs, setExcludedPairs] = useState([]);
+
+  console.log("excluded pair: ", excludedPairs.length);
 
   const categorizeChickens = (collection) => {
     const stags = [];
@@ -54,6 +66,164 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
     setToprankBullstag(toprankBullstags);
     setToprankCock(toprankCocks);
   }, [entries, toprankEntries]);
+
+  useEffect(() => {
+    const fetchExcludedPairs = () => {
+      const excludedRef = collection(db, "excludedEntries");
+
+      const unsubscribe = onSnapshot(excludedRef, (snapshot) => {
+        const fetchedExcludedPairs = [];
+        console.log("Starting to fetch excluded pairs");
+
+        snapshot.forEach((doc) => {
+          const excludedData = doc.data();
+          console.log("Doc data: ", excludedData); // Log the data from Firestore
+
+          if (excludedData.eventId === eventId) {
+            console.log("Found matching eventId:", eventId);
+            // If there are excluded entries, push them into the array
+            if (excludedData.excluded && excludedData.excluded.length > 0) {
+              console.log("Found excluded pairs: ", excludedData.excluded);
+              fetchedExcludedPairs.push(...excludedData.excluded);
+            } else {
+              console.log("No excluded pairs found in this document.");
+            }
+          }
+        });
+
+        // Only update the excludedPairs state if it's not empty
+        if (fetchedExcludedPairs.length > 0) {
+          console.log("Fetched Excluded Pairs: ", fetchedExcludedPairs);
+          setExcludedPairs(fetchedExcludedPairs);
+        } else {
+          console.log("No excluded pairs found for this event.");
+        }
+      });
+
+      return () => unsubscribe(); // Cleanup listener on component unmount
+    };
+
+    fetchExcludedPairs();
+  }, [eventId]);
+  useEffect(() => {
+    const matchEntries = (data, actionType) => {
+      const matchResults = [];
+      const matchedChickens = new Set();
+
+      // Matching logic
+      // Iterate through entries
+      data?.forEach((entry, i) => {
+        const chickenEntries = entry.chickenEntries || [];
+        chickenEntries.forEach((chicken) => {
+          const chickenKey = `${entry.entryName}-${chicken.weight}`;
+
+          // Skip if already matched
+          if (matchedChickens.has(chickenKey)) {
+            return;
+          }
+
+          let matched = false;
+
+          // Find a match for the current chicken
+          data?.forEach((otherEntry, j) => {
+            if (i !== j) {
+              const otherChickenEntries = otherEntry.chickenEntries || [];
+              otherChickenEntries.forEach((otherChicken) => {
+                const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
+
+                console.log("Excluded before matching: ", excludedPairs.length);
+                // Skip if excluded
+                const isExcluded = excludedPairs.some(
+                  (pair) =>
+                    (pair.entry1 === entry.entryName &&
+                      pair.entry2 === otherEntry.entryName) ||
+                    (pair.entry1 === otherEntry.entryName &&
+                      pair.entry2 === entry.entryName)
+                );
+
+                if (
+                  !matchedChickens.has(chickenKey) &&
+                  !matchedChickens.has(otherChickenKey) &&
+                  !isExcluded
+                ) {
+                  const weight1 = parseFloat(chicken.weight);
+                  const weight2 = parseFloat(otherChicken.weight);
+                  const weightDifference = Math.abs(weight1 - weight2);
+
+                  if (weightDifference <= 35) {
+                    // Match found
+                    matchResults.push({
+                      fightNumber: matchResults.length + 1,
+                      entryName1: entry.entryName,
+                      ownerName1: entry.ownerName,
+                      chickenName1: chicken.chickenName || "none",
+                      weight1: weight1.toFixed(2),
+                      entryName2: otherEntry.entryName,
+                      ownerName2: otherEntry.ownerName,
+                      chickenName2: otherChicken.chickenName || "none",
+                      weight2: weight2.toFixed(2),
+                    });
+
+                    matchedChickens.add(chickenKey);
+                    matchedChickens.add(otherChickenKey);
+                    matched = true;
+                  }
+                }
+              });
+            }
+          });
+
+          // If no match is found, mark the entry as standby
+          if (!matched) {
+            matchResults.push({
+              fightNumber: matchResults.length + 1,
+              entryName1: `${entry.entryName} (standby)`,
+              ownerName1: entry.ownerName,
+              chickenName1: chicken.chickenName || "none",
+              weight1: parseFloat(chicken.weight).toFixed(2),
+              entryName2: "",
+              ownerName2: "",
+              chickenName2: "",
+              weight2: "",
+            });
+          }
+        });
+      });
+      // Dispatch match results to reducer
+
+      dispatch({
+        type: actionType,
+        payload: matchResults,
+      });
+    };
+
+    // Check if excludedPairs is populated before running match logic
+    if (excludedPairs.length > 0) {
+      // Call matchEntries for each data set
+      matchEntries(stags, actionTypes.ADD_TO_STAGS);
+      matchEntries(bullstag, actionTypes.ADD_TO_BULLSTAGS);
+      matchEntries(cocks, actionTypes.ADD_TO_COCKS);
+      matchEntries(toprankStags, actionTypes.ADD_TO_TOPRANKSTAGS);
+      matchEntries(toprankBullstag, actionTypes.ADD_TO_TOPRANKBULLSTAGS);
+      matchEntries(toprankCock, actionTypes.ADD_TO_TOPRANKCOCKS);
+    } else {
+      // Call matchEntries for each data set
+      matchEntries(stags, actionTypes.ADD_TO_STAGS);
+      matchEntries(bullstag, actionTypes.ADD_TO_BULLSTAGS);
+      matchEntries(cocks, actionTypes.ADD_TO_COCKS);
+      matchEntries(toprankStags, actionTypes.ADD_TO_TOPRANKSTAGS);
+      matchEntries(toprankBullstag, actionTypes.ADD_TO_TOPRANKBULLSTAGS);
+      matchEntries(toprankCock, actionTypes.ADD_TO_TOPRANKCOCKS);
+    }
+  }, [
+    stags,
+    bullstag,
+    cocks,
+    toprankStags,
+    toprankBullstag,
+    toprankCock,
+    excludedPairs,
+  ]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -347,7 +517,7 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Stag Matching</h3>
           </div>
-          <Match data={stags} eventId={eventId} />
+          <Match data={stags} eventId={eventId} type="Stag" />
         </div>
       );
     }
@@ -357,7 +527,7 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Bullstag Matching</h3>
           </div>
-          <Match data={bullstag} eventId={eventId} />
+          <Match data={bullstag} eventId={eventId} type="Bullstag" />
         </div>
       );
     }
@@ -367,7 +537,7 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Cock Matching</h3>
           </div>
-          <Match data={cocks} eventId={eventId} />
+          <Match data={cocks} eventId={eventId} type="Cock" />
         </div>
       );
     }
@@ -461,7 +631,7 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Toprank Stag Matching</h3>
           </div>
-          <Match data={toprankStags} eventId={eventId} />
+          <Match data={toprankStags} eventId={eventId} type="Toprank Stag" />
         </div>
       );
     }
@@ -471,7 +641,11 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Toprank Bullstag Matching</h3>
           </div>
-          <Match data={toprankBullstag} eventId={eventId} />
+          <Match
+            data={toprankBullstag}
+            eventId={eventId}
+            type="Toprank Bullstag"
+          />
         </div>
       );
     }
@@ -481,7 +655,7 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Toprank Cock Matching</h3>
           </div>
-          <Match data={toprankCock} eventId={eventId} />
+          <Match data={toprankCock} eventId={eventId} type="Toprank Cock" />
         </div>
       );
     }
@@ -567,6 +741,52 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
       </ul>
       {/* Tab content */}
       <div className="tab-content mt-3">{renderTabContent()}</div>
+      <div>
+        <h2>Stags Matches</h2>
+        <table className="table table-striped">
+          <thead>
+            <tr>
+              <th>Fight #</th>
+              <th>Entry Name</th>
+              <th>Owner Name</th>
+              <th>Wing/Leg #</th>
+              <th>Weight</th>
+              <th>Matched Entry Name</th>
+              <th>Matched Owner Name</th>
+              <th>Matched Wing/Leg #</th>
+              <th>Weight</th>
+            </tr>
+          </thead>
+          <tbody>
+            {state.stags.length === 0 ||
+            !state.stags.some((item) => item.length > 0) ? (
+              <tr>
+                <td colSpan="9" className="text-center">
+                  No Stags Matches Available
+                </td>
+              </tr>
+            ) : (
+              // Filtering and mapping over only valid match objects
+              state.stags
+                .filter((match) => match.length > 0) // Remove empty arrays
+                .flat() // Flatten any nested arrays
+                .map((match, index) => (
+                  <tr key={index}>
+                    <td>{match.fightNumber}</td>
+                    <td>{match.entryName1}</td>
+                    <td>{match.ownerName1}</td>
+                    <td>{match.chickenName1}</td>
+                    <td>{match.weight1}</td>
+                    <td>{match.entryName2}</td>
+                    <td>{match.ownerName2}</td>
+                    <td>{match.chickenName2}</td>
+                    <td>{match.weight2}</td>
+                  </tr>
+                ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
