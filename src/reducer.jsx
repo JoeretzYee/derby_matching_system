@@ -23,7 +23,6 @@ export const actionTypes = {
 };
 
 const reducer = (state, action) => {
-  console.log(action);
   switch (action.type) {
     case actionTypes.ADD_TO_STAGS:
       // Check if payload is an empty array
@@ -32,7 +31,7 @@ const reducer = (state, action) => {
       }
       return {
         ...state,
-        stags: [action.payload], // Add to the stags array
+        stags: [...state.stags, action.payload], // Add to the stags array
       };
     case actionTypes.ADD_TO_BULLSTAGS:
       if (action.payload.length === 0) {
@@ -40,7 +39,7 @@ const reducer = (state, action) => {
       }
       return {
         ...state,
-        bullstags: [...state.bullstags, action.payload],
+        bullstags: [...state.stags, action.payload],
       };
     case actionTypes.ADD_TO_COCKS:
       if (action.payload.length === 0) {

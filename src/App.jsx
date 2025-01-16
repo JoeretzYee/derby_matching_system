@@ -5,13 +5,13 @@ import {
   collection,
   db,
   deleteDoc,
-  query,
-  where,
-  getDocs,
   doc,
-  writeBatch,
+  getDocs,
   onSnapshot,
+  query,
   updateDoc,
+  where,
+  writeBatch,
 } from "./firebase";
 //react router
 import { FaEdit, FaEye, FaTrashAlt } from "react-icons/fa";
@@ -148,6 +148,26 @@ function App() {
         const batch = writeBatch(db);
         querySnapshot.forEach((doc) => {
           batch.delete(doc.ref); // Delete each document in the entries collection
+        });
+        // 3. Delete excluded entries related to the event
+        const excludedRef = collection(db, "excludedEntries");
+        const excludedQuery = query(
+          excludedRef,
+          where("eventId", "==", eventId)
+        );
+        const excludedSnapshot = await getDocs(excludedQuery);
+
+        excludedSnapshot.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+
+        // 4. Delete toprank entries related to the event (assuming toprank has an "eventId" field)
+        const toprankRef = collection(db, "toprank");
+        const toprankQuery = query(toprankRef, where("eventId", "==", eventId));
+        const toprankSnapshot = await getDocs(toprankQuery);
+
+        toprankSnapshot.forEach((doc) => {
+          batch.delete(doc.ref);
         });
 
         // Commit the batch delete
