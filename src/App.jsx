@@ -5,7 +5,11 @@ import {
   collection,
   db,
   deleteDoc,
+  query,
+  where,
+  getDocs,
   doc,
+  writeBatch,
   onSnapshot,
   updateDoc,
 } from "./firebase";
@@ -135,17 +139,29 @@ function App() {
       });
 
       if (result.isConfirmed) {
-        // Reference to the event document in the Firestore database
-        const eventRef = doc(db, "events", eventId);
+        // 1. Query the entries collection to get all entries associated with the eventId
+        const entriesRef = collection(db, "entries");
+        const entriesQuery = query(entriesRef, where("eventId", "==", eventId));
+        const querySnapshot = await getDocs(entriesQuery);
 
-        // Delete the event document
+        // 2. Delete each entry associated with the eventId
+        const batch = writeBatch(db);
+        querySnapshot.forEach((doc) => {
+          batch.delete(doc.ref); // Delete each document in the entries collection
+        });
+
+        // Commit the batch delete
+        await batch.commit();
+
+        // 3. Delete the event document
+        const eventRef = doc(db, "events", eventId);
         await deleteDoc(eventRef);
 
         // Show a success alert after deletion
         Swal.fire({
           icon: "success",
           title: "Deleted!",
-          text: "The event has been deleted.",
+          text: "The event and associated entries have been deleted.",
           timer: 1500, // Auto-close after 1.5 seconds
           showConfirmButton: false,
         });
@@ -155,7 +171,7 @@ function App() {
       Swal.fire({
         icon: "error",
         title: "Error",
-        text: `Failed to delete the event. Please try again.`,
+        text: `Failed to delete the event and its entries. Please try again.`,
       });
       console.error("Error Deleting Event:", error);
     }

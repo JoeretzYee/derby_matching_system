@@ -154,6 +154,11 @@ function EventList() {
       // Reference to the 'excludedEntries' collection
       const excludedRef = collection(db, "excludedEntries");
 
+      console.log(
+        "Checking if the eventId in excludedEntries is correct: ",
+        eventId
+      );
+
       // Query to check if the selected entries are already excluded
       const q = query(excludedRef, where("eventId", "==", eventId));
       const querySnapshot = await getDocs(q);
