@@ -406,6 +406,8 @@ function TabsList({
             eventId={eventId}
             type="Stag"
             eventGivenTake={eventGivenTake}
+            date={date}
+            eventName={eventName}
           />
         </div>
       );
@@ -421,6 +423,8 @@ function TabsList({
             eventId={eventId}
             type="Bullstag"
             eventGivenTake={eventGivenTake}
+            date={date}
+            eventName={eventName}
           />
         </div>
       );
@@ -436,6 +440,8 @@ function TabsList({
             eventId={eventId}
             type="Cock"
             eventGivenTake={eventGivenTake}
+            date={date}
+            eventName={eventName}
           />
         </div>
       );
@@ -540,6 +546,8 @@ function TabsList({
             eventId={eventId}
             type="Toprank Stag"
             eventGivenTake={eventGivenTake}
+            date={date}
+            eventName={eventName}
           />
         </div>
       );
@@ -555,6 +563,8 @@ function TabsList({
             eventId={eventId}
             type="Toprank Bullstag"
             eventGivenTake={eventGivenTake}
+            date={date}
+            eventName={eventName}
           />
         </div>
       );
@@ -570,6 +580,8 @@ function TabsList({
             eventId={eventId}
             type="Toprank Cock"
             eventGivenTake={eventGivenTake}
+            date={date}
+            eventName={eventName}
           />
         </div>
       );

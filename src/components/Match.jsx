@@ -2,11 +2,48 @@ import React, { useEffect, useState } from "react";
 import * as XLSX from "xlsx"; // Import xlsx library
 import { collection, db, onSnapshot } from "../firebase";
 
-function Match({ data, eventId, type, eventGivenTake }) {
+function Match({ data, eventId, type, eventGivenTake, date, eventName }) {
   const [excludedPairs, setExcludedPairs] = useState([]);
   const [resultsMatch, setResultsMatch] = useState(null);
 
-  console.table(data);
+  const formatDate = (date) => {
+    const daysOfWeek = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+
+    const parsedDate = new Date(date);
+    const dayOfWeek = daysOfWeek[parsedDate.getDay()];
+    const month = months[parsedDate.getMonth()];
+    const day = parsedDate.getDate();
+    const year = parsedDate.getFullYear();
+    const hours = parsedDate.getHours();
+    const minutes = parsedDate.getMinutes();
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const formattedHours = hours % 12 || 12;
+    const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
+
+    return `${dayOfWeek} at ${month} ${day}, ${year} at ${formattedHours}:${formattedMinutes} ${ampm}`;
+  };
 
   // Fetch excluded entries from Firebase
   useEffect(() => {
@@ -109,7 +146,21 @@ function Match({ data, eventId, type, eventGivenTake }) {
       }
     });
   });
+  //export to excel
   const exportToExcel = () => {
+    const formattedDate = formatDate(date);
+    // Event details (without "Promoted by" for now)
+    const eventDetails = [
+      { label: "Event Name", value: `${eventName}` },
+      { label: "Location", value: "Nabunturan Super Sports Center" },
+      { label: "Date", value: formattedDate },
+      { label: "Type", value: type },
+      { label: `${type} Fight List`, value: "" },
+    ];
+
+    // Prepare event details as an array of arrays for Excel formatting
+    const eventHeader = eventDetails.map((item) => [item.label, item.value]);
+
     // Define custom headers for the table format
     const headers = [
       "Fight #",
@@ -136,6 +187,30 @@ function Match({ data, eventId, type, eventGivenTake }) {
       matchedWeight: result.matchedWeight,
     }));
 
+    // Create the Excel sheet and add event details at the top
+    const ws = XLSX.utils.aoa_to_sheet(eventHeader);
+
+    // Add a blank row after the event details for spacing
+    const blankRow = new Array(headers.length).fill(""); // Empty row for spacing
+    XLSX.utils.sheet_add_aoa(ws, [blankRow], { origin: -1 });
+
+    // Add the table headers below the event details
+    const headerRow = [headers];
+    XLSX.utils.sheet_add_aoa(ws, headerRow, { origin: -1 });
+
+    // Add the formatted match results below the table headers
+    XLSX.utils.sheet_add_json(ws, formattedResults, {
+      origin: -1,
+      skipHeader: true,
+    });
+
+    // Add a blank row after the match results for spacing
+    XLSX.utils.sheet_add_aoa(ws, [blankRow], { origin: -1 });
+
+    // Add the "Promoted by" section after the table list
+    const promotedBy = [["Promoted by", "Boss Jing"]];
+    XLSX.utils.sheet_add_aoa(ws, promotedBy, { origin: -1 });
+
     // Calculate column widths based on the content (headers and data)
     const columnWidths = headers.map((header, index) => {
       // Initialize width as the length of the header text
@@ -152,21 +227,8 @@ function Match({ data, eventId, type, eventGivenTake }) {
       return { wch: maxWidth + 2 }; // Adding extra space for flexibility
     });
 
-    // Convert data to Excel sheet, using custom headers
-    const ws = XLSX.utils.json_to_sheet(formattedResults);
-
     // Apply column widths to the sheet
     ws["!cols"] = columnWidths;
-
-    // Set the headers in the first row of the Excel sheet
-    const headerRow = headers.reduce((acc, header, index) => {
-      const colIndex = String.fromCharCode(65 + index); // Convert index to letter (A, B, C, etc.)
-      acc[`${colIndex}1`] = { v: header }; // Set the header at row 1
-      return acc;
-    }, {});
-
-    // Merge headers into the worksheet
-    Object.assign(ws, headerRow);
 
     // Create a new workbook and append the sheet to it
     const wb = XLSX.utils.book_new();
