@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
+import { db, getDocs, collection, query, where } from "../firebase";
+
 function AddEntryModal({
   show,
   onClose,
@@ -32,6 +34,27 @@ function AddEntryModal({
     setCurrentChickenName(prefix);
   }, [isStagChecked, isBullstagChecked, isCockChecked]);
 
+  // Firebase check function
+  const checkIfChickenNameExists = async (name) => {
+    // Fetch all documents from entries and toprank collections
+    const entriesSnapshot = await getDocs(collection(db, "entries"));
+    const toprankSnapshot = await getDocs(collection(db, "toprank"));
+
+    // Check if `chickenName` exists in any document's `chickenEntries` array
+    const existsInEntries = entriesSnapshot.docs.some((doc) => {
+      const chickenEntries = doc.data().chickenEntries || [];
+      return chickenEntries.some((chicken) => chicken.chickenName === name);
+    });
+
+    const existsInToprank = toprankSnapshot.docs.some((doc) => {
+      const chickenEntries = doc.data().chickenEntries || [];
+      return chickenEntries.some((chicken) => chicken.chickenName === name);
+    });
+
+    // Return true if the name exists in either collection
+    return existsInEntries || existsInToprank;
+  };
+
   // Handlers for input changes
   const handleChickenNameChange = (event) =>
     setCurrentChickenName(event.target.value);
@@ -41,30 +64,31 @@ function AddEntryModal({
   const handleAddressChange = (e) => setAddress(e.target.value);
 
   // Add chicken and weight entry
-  const addChickenEntry = () => {
-    // Check if any checkbox is checked
+  const addChickenEntry = async () => {
     if (!isStagChecked && !isBullstagChecked && !isCockChecked) {
       Swal.fire({
         icon: "error",
-        title: "error",
-        text: "Please select a chicken type (Stag,Bullstag, or Cock)",
+        title: "Error",
+        text: "Please select a chicken type (Stag, Bullstag, or Cock).",
       });
       return;
     }
     if (chickenEntries.length >= maxEntries) {
       Swal.fire({
         icon: "error",
-        title: "error",
+        title: "Error",
         text: `You can only add up to ${maxEntries} chicken entries.`,
       });
       return;
     }
-
-    // if (!currentChickenName.trim()) {
-    //   alert("Please enter a chicken name.");
-    //   return;
-    // }
-
+    if (!currentChickenName.trim()) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Please enter a chicken name.",
+      });
+      return;
+    }
     if (
       !currentWeight ||
       isNaN(currentWeight) ||
@@ -72,20 +96,43 @@ function AddEntryModal({
     ) {
       Swal.fire({
         icon: "error",
-        title: "error",
+        title: "Error",
         text: "Please enter a valid weight (positive number).",
       });
-
       return;
     }
 
-    // Determine chicken type based on checked checkboxes
-    let chickenType = "";
-    if (isStagChecked) chickenType = "stag";
-    else if (isBullstagChecked) chickenType = "bullstag";
-    else if (isCockChecked) chickenType = "cock";
+    // Check if `chickenName` exists in the component's state
+    const existsInState = chickenEntries.some(
+      (entry) => entry.chickenName === currentChickenName
+    );
+    if (existsInState) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: `Chicken name "${currentChickenName}" already exists in your entries.`,
+      });
+      return;
+    }
 
-    // Add the chicken entry to the list
+    // Check if the chicken name already exists
+    const isDuplicate = await checkIfChickenNameExists(currentChickenName);
+    if (isDuplicate) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: `The chicken name "${currentChickenName}" already exists in the system.`,
+      });
+      return;
+    }
+
+    // Add the chicken entry
+    const chickenType = isStagChecked
+      ? "stag"
+      : isBullstagChecked
+      ? "bullstag"
+      : "cock";
+
     setChickenEntries([
       ...chickenEntries,
       {
@@ -95,7 +142,6 @@ function AddEntryModal({
       },
     ]);
 
-    // Clear inputs after adding
     setCurrentChickenName("");
     setCurrentWeight("");
     setIsBullstagChecked(false);
