@@ -220,7 +220,7 @@ function TabsList({
     const headers = ["#", "Entry Name", "Owner Name", "Address", "Chickens"]; // Define headers for the Excel file
 
     // Prepare data rows
-    const data = entries.map((entry, index) => {
+    const data = entries?.map((entry, index) => {
       const chickenDetails = entry.chickenEntries
         .map((chicken) => `${chicken.chickenName} - ${chicken.weight}`)
         .join(", ");
@@ -257,6 +257,49 @@ function TabsList({
 
     // Write to Excel file and trigger download
     XLSX.writeFile(workbook, "entries.xlsx");
+  };
+  //generate excel Toprank Entries
+  const generateExcelToprankEntries = () => {
+    const headers = ["#", "Entry Name", "Owner Name", "Address", "Chickens"]; // Define headers for the Excel file
+
+    // Prepare data rows
+    const data = toprankEntries?.map((entry, index) => {
+      const chickenDetails = entry.chickenEntries
+        .map((chicken) => `${chicken.chickenName} - ${chicken.weight}`)
+        .join(", ");
+      return [
+        index + 1,
+        entry.entryName,
+        entry.ownerName,
+        entry.address,
+        chickenDetails,
+      ];
+    });
+
+    // Combine headers and data
+    const worksheetData = [headers, ...data];
+
+    // Create worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+    // Calculate column widths
+    const columnWidths = worksheetData[0].map((header, colIndex) => ({
+      wch: Math.max(
+        header.length, // Header length
+        ...data.map((row) =>
+          row[colIndex] ? row[colIndex].toString().length : 0
+        ) // Data length
+      ),
+    }));
+
+    worksheet["!cols"] = columnWidths; // Set column widths in the worksheet
+
+    // Create workbook and append the worksheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Toprank Entries");
+
+    // Write to Excel file and trigger download
+    XLSX.writeFile(workbook, "Toprank_Entries.xlsx");
   };
 
   // Render the active tab content
@@ -417,7 +460,12 @@ function TabsList({
           <div className="d-flex align-items-center justify-content-between">
             <h3>Toprank Entries</h3>
 
-            <button className="btn btn-md btn-success">Generate</button>
+            <button
+              onClick={generateExcelToprankEntries}
+              className="btn btn-md btn-success"
+            >
+              Generate
+            </button>
           </div>
 
           <table className="table table-striped">

@@ -298,7 +298,6 @@ function EventList() {
           >
             Add Entry
           </button>
-          <button className="btn btn-md btn-success">Generate</button>
         </div>
         {/* Add Entry Modal */}
         <AddEntryModal
