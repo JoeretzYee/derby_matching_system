@@ -3,11 +3,13 @@ import React, { useEffect, useState } from "react";
 const EditEventModal = ({ show, onClose, onSave, event }) => {
   const [eventName, setEventName] = useState("");
   const [when, setWhen] = useState("");
+  const [givenTake, setGivenTake] = useState("");
 
   useEffect(() => {
     if (event) {
       setEventName(event.name || "");
       setWhen(event.when || ""); // Format the date correctly
+      setGivenTake(event.givenTake || "");
     }
   }, [event]);
 
@@ -17,6 +19,7 @@ const EditEventModal = ({ show, onClose, onSave, event }) => {
         id: event.id,
         eventName: eventName.trim(),
         when: when.trim(),
+        givenTake: givenTake,
       });
       onClose();
     } else {
@@ -42,6 +45,15 @@ const EditEventModal = ({ show, onClose, onSave, event }) => {
             ></button>
           </div>
           <div className="modal-body">
+            <div className="mb-3">
+              <label className="form-label">Given Take</label>
+              <input
+                type="number"
+                className="form-control"
+                value={givenTake}
+                onChange={(e) => setGivenTake(e.target.value)}
+              />
+            </div>
             <div className="mb-3">
               <label className="form-label">Event Name</label>
               <input

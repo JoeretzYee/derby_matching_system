@@ -6,7 +6,14 @@ import { db, deleteDoc, doc, updateDoc } from "../firebase"; // import updateDoc
 import reducer, { initialState } from "../reducer";
 import Match from "./Match";
 
-function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
+function TabsList({
+  entries,
+  toprankEntries,
+  date,
+  eventName,
+  eventId,
+  eventGivenTake,
+}) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [activeTab, setActiveTab] = useState("Entries");
   const [showEditModal, setShowEditModal] = useState(false);
@@ -20,8 +27,6 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
   const [toprankBullstag, setToprankBullstag] = useState([]);
   const [toprankCock, setToprankCock] = useState([]);
   const [excludedPairs, setExcludedPairs] = useState([]);
-
-  console.table(bullstag);
 
   const categorizeChickens = (collection) => {
     const stags = [];
@@ -353,7 +358,12 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Stag Matching</h3>
           </div>
-          <Match data={stags} eventId={eventId} type="Stag" />
+          <Match
+            data={stags}
+            eventId={eventId}
+            type="Stag"
+            eventGivenTake={eventGivenTake}
+          />
         </div>
       );
     }
@@ -363,7 +373,12 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Bullstag Matching</h3>
           </div>
-          <Match data={bullstag} eventId={eventId} type="Bullstag" />
+          <Match
+            data={bullstag}
+            eventId={eventId}
+            type="Bullstag"
+            eventGivenTake={eventGivenTake}
+          />
         </div>
       );
     }
@@ -373,7 +388,12 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Cock Matching</h3>
           </div>
-          <Match data={cocks} eventId={eventId} type="Cock" />
+          <Match
+            data={cocks}
+            eventId={eventId}
+            type="Cock"
+            eventGivenTake={eventGivenTake}
+          />
         </div>
       );
     }
@@ -467,7 +487,12 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Toprank Stag Matching</h3>
           </div>
-          <Match data={toprankStags} eventId={eventId} type="Toprank Stag" />
+          <Match
+            data={toprankStags}
+            eventId={eventId}
+            type="Toprank Stag"
+            eventGivenTake={eventGivenTake}
+          />
         </div>
       );
     }
@@ -481,6 +506,7 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
             data={toprankBullstag}
             eventId={eventId}
             type="Toprank Bullstag"
+            eventGivenTake={eventGivenTake}
           />
         </div>
       );
@@ -491,7 +517,12 @@ function TabsList({ entries, toprankEntries, date, eventName, eventId }) {
           <div className="d-flex align-items-center justify-content-between">
             <h3>Toprank Cock Matching</h3>
           </div>
-          <Match data={toprankCock} eventId={eventId} type="Toprank Cock" />
+          <Match
+            data={toprankCock}
+            eventId={eventId}
+            type="Toprank Cock"
+            eventGivenTake={eventGivenTake}
+          />
         </div>
       );
     }

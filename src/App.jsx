@@ -63,6 +63,7 @@ function App() {
       await addDoc(eventsCollection, {
         name: data.eventName,
         when: data.when,
+        givenTake: data.givenTake,
       });
 
       // SweetAlert success message
@@ -91,6 +92,7 @@ function App() {
       await updateDoc(eventRef, {
         name: updatedEvent.eventName,
         when: updatedEvent.when,
+        givenTake: updatedEvent.givenTake,
       });
 
       // Update the local state (if needed) or re-fetch the events
@@ -101,6 +103,7 @@ function App() {
                 ...event,
                 name: updatedEvent.eventName,
                 when: updatedEvent.when,
+                givenTake: updatedEvent.givenTake,
               }
             : event
         )

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { collection, db, onSnapshot } from "../firebase";
 
-function Match({ data, eventId, type }) {
+function Match({ data, eventId, type, eventGivenTake }) {
   const [excludedPairs, setExcludedPairs] = useState([]);
 
   console.table(data);
@@ -40,7 +40,7 @@ function Match({ data, eventId, type }) {
 
   data?.forEach((entry) => {
     entry.chickenEntries?.forEach((chicken) => {
-      const chickenKey = `${entry.entryName}-${chicken.weight}`;
+      const chickenKey = `${entry.entryName}-${chicken.chickenName}`; // Use chickenName for uniqueness
       if (matchedChickens.has(chickenKey)) return; // Skip if already matched
 
       let isMatched = false;
@@ -60,14 +60,14 @@ function Match({ data, eventId, type }) {
         if (isExcluded) continue; // Skip excluded pair
 
         for (const otherChicken of otherEntry.chickenEntries || []) {
-          const otherChickenKey = `${otherEntry.entryName}-${otherChicken.weight}`;
+          const otherChickenKey = `${otherEntry.entryName}-${otherChicken.chickenName}`; // Use chickenName for uniqueness
           if (matchedChickens.has(otherChickenKey)) continue; // Skip if already matched
 
           const weight1 = parseFloat(chicken.weight);
           const weight2 = parseFloat(otherChicken.weight);
           const weightDifference = Math.abs(weight1 - weight2);
 
-          if (weightDifference <= 35) {
+          if (weightDifference <= eventGivenTake) {
             // Create a match
             results.push({
               fightNumber: results.length + 1,
@@ -107,7 +107,6 @@ function Match({ data, eventId, type }) {
       }
     });
   });
-
   return (
     <table className="table table-striped">
       <thead>

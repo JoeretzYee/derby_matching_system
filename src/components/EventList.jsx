@@ -255,6 +255,7 @@ function EventList() {
       });
 
       setShowAddEntryModal(false);
+      window.location.reload();
     } catch (error) {
       console.error("Error adding entry:", error);
       Swal.fire({
@@ -317,6 +318,7 @@ function EventList() {
         toprankEntries={toprankEntries}
         date={eventDetail.when}
         eventName={eventDetail.name}
+        eventGivenTake={eventDetail.givenTake}
       />
       {/* Exclude Modal */}
       {showExcludeModal && (
